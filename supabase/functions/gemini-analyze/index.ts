@@ -137,7 +137,7 @@ For true_false questions, use options: ["True", "False"] and correct_answer: "0"
 Article content:
 ${content.slice(0, 12000)}`;
 
-    const config = getProviderConfig(selectedProvider);
+    const config = getProviderConfig(selectedProvider, typeof openrouter_api_key === "string" ? openrouter_api_key.trim() : undefined);
 
     console.log(`[gemini-analyze] provider=${selectedProvider} model=${selectedModel}`);
     if (warning) {
