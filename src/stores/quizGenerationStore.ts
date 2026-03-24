@@ -51,6 +51,7 @@ const initialState: QuizGenerationConfig = {
   focusTopics: [],
   provider: "lovable",
   model: "google/gemini-3-flash-preview",
+  openrouterApiKey: "",
   currentStep: 0,
   generating: false,
   generationStatus: "",
