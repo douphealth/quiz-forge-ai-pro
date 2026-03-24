@@ -4,35 +4,84 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, BookOpen, Brain, ArrowRight, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+type Provider = "openrouter" | "gemini" | "claude";
+
+const PRESET_MODELS: Record<Provider, { label: string; models: { value: string; label: string }[] }> = {
+  openrouter: {
+    label: "OpenRouter",
+    models: [
+      { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+      { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
+      { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+      { value: "openai/gpt-4o", label: "GPT-4o" },
+      { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+      { value: "meta-llama/llama-3.1-70b-instruct", label: "Llama 3.1 70B" },
+      { value: "mistralai/mistral-large-latest", label: "Mistral Large" },
+      { value: "custom", label: "✏️ Custom model..." },
+    ],
+  },
+  gemini: {
+    label: "Google Gemini",
+    models: [
+      { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+      { value: "google/gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+    ],
+  },
+  claude: {
+    label: "Anthropic Claude",
+    models: [
+      { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
+      { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+      { value: "anthropic/claude-3-haiku", label: "Claude 3 Haiku" },
+    ],
+  },
+};
 
 const Index = () => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState<Provider>("openrouter");
+  const [selectedModel, setSelectedModel] = useState("google/gemini-2.5-flash");
+  const [customModel, setCustomModel] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
   const navigate = useNavigate();
+
+  const effectiveModel = selectedModel === "custom" ? customModel : selectedModel;
+
+  const handleProviderChange = (p: Provider) => {
+    setProvider(p);
+    setSelectedModel(PRESET_MODELS[p].models[0].value);
+    setCustomModel("");
+  };
 
   const handleGenerate = async () => {
     if (!url.trim()) {
       toast({ title: "Please enter a WordPress URL", variant: "destructive" });
       return;
     }
+    if (!effectiveModel.trim()) {
+      toast({ title: "Please select or enter a model", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      // Step 1: Fetch content from WordPress
       const { data: wpData, error: wpError } = await supabase.functions.invoke("wordpress-proxy", {
         body: { url: url.trim() },
       });
       if (wpError) throw wpError;
 
-      // Step 2: Generate quiz with Gemini
       const { data: quizData, error: quizError } = await supabase.functions.invoke("gemini-analyze", {
-        body: { content: wpData.content, title: wpData.title },
+        body: { content: wpData.content, title: wpData.title, model: effectiveModel },
       });
       if (quizError) throw quizError;
 
-      // Step 3: Save quiz
       const { data: savedQuiz, error: saveError } = await supabase.functions.invoke("save-quiz", {
         body: {
           title: quizData.title,
@@ -56,13 +105,12 @@ const Index = () => {
 
   const features = [
     { icon: BookOpen, title: "Paste a URL", desc: "Drop any WordPress article link" },
-    { icon: Brain, title: "AI Analyzes", desc: "Gemini extracts key concepts" },
+    { icon: Brain, title: "AI Analyzes", desc: "Pick your favorite AI model" },
     { icon: Zap, title: "Quiz Ready", desc: "Interactive quiz in seconds" },
   ];
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
       <header className="border-b border-border px-6 py-4">
         <div className="container flex items-center justify-between">
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
@@ -74,7 +122,6 @@ const Index = () => {
         </div>
       </header>
 
-      {/* Hero */}
       <main className="flex-1 flex items-center justify-center px-6 py-20">
         <div className="container max-w-3xl text-center space-y-12">
           <motion.div
@@ -89,7 +136,7 @@ const Index = () => {
               <span className="text-primary">an interactive quiz</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Paste a WordPress URL and let AI generate engaging quiz questions instantly.
+              Paste a WordPress URL, choose your AI model, and get quiz questions instantly.
             </p>
           </motion.div>
 
@@ -97,20 +144,102 @@ const Index = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex gap-3 max-w-lg mx-auto"
+            className="space-y-4 max-w-lg mx-auto"
           >
-            <Input
-              placeholder="https://your-wordpress-site.com/article..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
-              className="h-12 text-base"
-              disabled={loading}
-            />
-            <Button onClick={handleGenerate} disabled={loading} size="lg" className="h-12 px-6 gap-2">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-              {loading ? "Generating..." : "Generate"}
-            </Button>
+            {/* URL input row */}
+            <div className="flex gap-3">
+              <Input
+                placeholder="https://your-wordpress-site.com/article..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+                className="h-12 text-base"
+                disabled={loading}
+              />
+              <Button onClick={handleGenerate} disabled={loading} size="lg" className="h-12 px-6 gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                {loading ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+
+            {/* Model settings toggle */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto"
+            >
+              <Settings2 className="h-4 w-4" />
+              <span>Model: {effectiveModel || "Select..."}</span>
+            </button>
+
+            {/* Model settings panel */}
+            {showSettings && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="rounded-xl border border-border bg-card p-4 space-y-4 text-left"
+              >
+                {/* Provider tabs */}
+                <div className="flex gap-2">
+                  {(Object.keys(PRESET_MODELS) as Provider[]).map((p) => (
+                    <Button
+                      key={p}
+                      variant={provider === p ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleProviderChange(p)}
+                      className="text-xs"
+                    >
+                      {PRESET_MODELS[p].label}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Model selector */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Model</label>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRESET_MODELS[provider].models.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Custom model input (OpenRouter only) */}
+                {selectedModel === "custom" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Custom Model ID</label>
+                    <Input
+                      placeholder="e.g. deepseek/deepseek-r1"
+                      value={customModel}
+                      onChange={(e) => setCustomModel(e.target.value)}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter any model ID from{" "}
+                      <a
+                        href="https://openrouter.ai/models"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        openrouter.ai/models
+                      </a>
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  All models are routed through OpenRouter. Pick a provider shortcut or enter any custom model.
+                </p>
+              </motion.div>
+            )}
           </motion.div>
 
           <motion.div
