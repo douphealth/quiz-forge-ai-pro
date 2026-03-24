@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { X, Sparkles, Globe, Cpu } from "lucide-react";
+import { X, Sparkles, Globe, Cpu, Key, Eye, EyeOff } from "lucide-react";
 import { useQuizGenerationStore, type AIProvider } from "@/stores/quizGenerationStore";
 import { useState } from "react";
 
