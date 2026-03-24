@@ -19,6 +19,7 @@ export interface QuizGenerationConfig {
   focusTopics: string[];
   provider: AIProvider;
   model: string;
+  openrouterApiKey: string;
 
   // State
   currentStep: number;
