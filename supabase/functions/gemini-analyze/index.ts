@@ -87,7 +87,7 @@ serve(async (req) => {
 
   try {
     const {
-      content, title, model, provider,
+      content, title, model, provider, openrouter_api_key,
       numQuestions, difficulty, questionTypes, language, focusTopics,
     } = await req.json();
 
