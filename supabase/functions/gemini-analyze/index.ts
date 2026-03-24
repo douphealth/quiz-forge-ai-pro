@@ -186,10 +186,10 @@ ${content.slice(0, 12000)}`;
       const errText = await response.text();
       console.error(`[gemini-analyze] ${selectedProvider} error ${response.status}:`, errText);
 
-      // Provide actionable error for model not found
-      if (response.status === 404) {
+      if (response.status === 404 || response.status === 400) {
         return new Response(JSON.stringify({
           error: `Model "${selectedModel}" is not available on ${selectedProvider === "lovable" ? "Lovable AI" : "OpenRouter"}. Please select a different model.`,
+          warning,
         }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
