@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+export type AIProvider = "lovable" | "openrouter";
+
 export interface QuizGenerationConfig {
   // Step 1: Source
   sourceType: "url" | "connection" | "paste";
@@ -15,6 +17,7 @@ export interface QuizGenerationConfig {
   questionTypes: string[];
   language: string;
   focusTopics: string[];
+  provider: AIProvider;
   model: string;
 
   // State
@@ -45,6 +48,7 @@ const initialState: QuizGenerationConfig = {
   questionTypes: ["multiple_choice"],
   language: "English",
   focusTopics: [],
+  provider: "lovable",
   model: "google/gemini-3-flash-preview",
   currentStep: 0,
   generating: false,
