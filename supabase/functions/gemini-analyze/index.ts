@@ -140,6 +140,9 @@ ${content.slice(0, 12000)}`;
     const config = getProviderConfig(selectedProvider);
 
     console.log(`[gemini-analyze] provider=${selectedProvider} model=${selectedModel}`);
+    if (warning) {
+      console.warn(`[gemini-analyze] ${warning}`);
+    }
 
     const response = await fetch(config.url, {
       method: "POST",
