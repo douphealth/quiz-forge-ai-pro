@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Mail } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -27,16 +28,6 @@ export function LoginForm() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) {
-      toast({ title: "Google login failed", description: error.message, variant: "destructive" });
-    }
-  };
-
   return (
     <Card className="w-full max-w-md border-border/50">
       <CardHeader className="text-center space-y-2">
@@ -44,6 +35,13 @@ export function LoginForm() {
         <CardDescription>Sign in to your QuizForge AI account</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <GoogleSignInButton />
+
+        <div className="flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">OR</span>
+          <Separator className="flex-1" />
+        </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-2">
