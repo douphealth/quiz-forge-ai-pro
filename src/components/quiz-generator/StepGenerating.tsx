@@ -66,7 +66,21 @@ export function StepGenerating() {
               try { const b = await (quizError as any).json(); if (b?.error) errorMsg = b.error; } catch {}
             }
           }
-          throw new Error(errorMsg);
+          // Try to read the response body from FunctionsHttpError
+          if ((quizError as any)?.context?.body) {
+            try {
+              const b = JSON.parse((quizError as any).context.body);
+              if (b?.error) errorMsg = b.error;
+            } catch {}
+          }
+          // Try .json() method on the error context (Supabase SDK pattern)
+          if (typeof (quizError as any)?.context?.json === "function") {
+            try {
+              const b = await (quizError as any).context.json();
+              if (b?.error) errorMsg = b.error;
+            } catch {}
+          }
+          throw new Error(errorMsg.replace("Edge Function returned a non-2xx status code", "Quiz generation failed. Check your API key and model selection."));
         }
         if (quizData?.error) throw new Error(quizData.error);
         if (quizData?.warning) {
