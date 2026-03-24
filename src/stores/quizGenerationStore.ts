@@ -45,7 +45,7 @@ const initialState: QuizGenerationConfig = {
   questionTypes: ["multiple_choice"],
   language: "English",
   focusTopics: [],
-  model: "google/gemini-2.5-flash",
+  model: "google/gemini-3-flash-preview",
   currentStep: 0,
   generating: false,
   generationStatus: "",
