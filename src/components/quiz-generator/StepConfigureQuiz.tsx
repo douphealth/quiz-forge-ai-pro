@@ -178,6 +178,40 @@ export function StepConfigureQuiz() {
             <TabsContent key={providerKey} value={providerKey} className="space-y-3 mt-3">
               <p className="text-xs text-muted-foreground">{PROVIDER_INFO[providerKey].description}</p>
 
+              {/* OpenRouter API Key Input */}
+              {providerKey === "openrouter" && (
+                <div className="space-y-1.5 p-3 rounded-lg border border-border bg-muted/30">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Key className="h-3.5 w-3.5" />
+                    OpenRouter API Key
+                    <span className="text-muted-foreground font-normal">(optional — uses server key if empty)</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="sk-or-v1-..."
+                      value={store.openrouterApiKey}
+                      onChange={(e) => store.setField("openrouterApiKey", e.target.value)}
+                      className="pr-9 font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Get your key at{" "}
+                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      openrouter.ai/keys
+                    </a>
+                    . Your key is sent securely and never stored.
+                  </p>
+                </div>
+              )}
+
               {!useCustomModel ? (
                 <div className="space-y-2">
                   <Select value={store.model} onValueChange={(v) => store.setField("model", v)}>
