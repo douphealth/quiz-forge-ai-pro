@@ -126,12 +126,6 @@ ${content.slice(0, 12000)}`;
     console.log(`[gemini-analyze] provider=${resolved.provider} model=${resolved.model}`);
     if (resolved.warning) console.warn(`[gemini-analyze] ${resolved.warning}`);
 
-    // Build the request — for OpenRouter, add provider routing hint
-    const providerSlug = resolved.model.split("/")[0]?.trim();
-    const openRouterHint = resolved.provider === "openrouter" && providerSlug
-      ? { provider: { order: [providerSlug], allow_fallbacks: true } }
-      : {};
-
     const payload = {
       model: resolved.model,
       messages: [
@@ -140,10 +134,7 @@ ${content.slice(0, 12000)}`;
       ],
       temperature: 0.7,
       max_tokens: 4096,
-      ...openRouterHint,
     };
-
-    console.log(`[gemini-analyze] payload provider hint:`, JSON.stringify(openRouterHint));
 
     const response = await fetch(config.url, {
       method: "POST",
@@ -174,12 +165,12 @@ ${content.slice(0, 12000)}`;
       try {
         const errJson = JSON.parse(errText);
         const msg = errJson?.error?.message || errJson?.error || errJson?.message;
-        if (msg) {
+          if (msg) {
           userMessage = String(msg);
-          // If the model's provider isn't accessible, give a helpful message
+
           if (userMessage.includes("No allowed providers")) {
             const available = errJson?.error?.metadata?.available_providers;
-            userMessage = `Model "${resolved.model}" requires provider "${available?.join(", ") || "unknown"}" which is not enabled for this API key. Try using your own OpenRouter API key, or choose a different model.`;
+              userMessage = `Your OpenRouter key was used, but model "${resolved.model}" is only available on provider "${available?.join(", ") || "unknown"}" and that provider is not allowed in your OpenRouter account settings. Enable that provider in OpenRouter or choose a different model.`;
           }
         }
       } catch { /* use default message */ }
