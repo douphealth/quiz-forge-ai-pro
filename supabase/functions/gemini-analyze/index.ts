@@ -17,7 +17,7 @@ serve(async (req) => {
       throw new Error("OPENROUTER_API_KEY not configured");
     }
 
-    const { content, title, model } = await req.json();
+    const { content, title, model, numQuestions, difficulty, questionTypes, language, focusTopics } = await req.json();
     if (!content) {
       return new Response(JSON.stringify({ error: "Content is required" }), {
         status: 400,
@@ -26,24 +26,42 @@ serve(async (req) => {
     }
 
     const selectedModel = model || "google/gemini-2.5-flash";
+    const count = numQuestions || 5;
+    const diff = difficulty || "medium";
+    const lang = language || "English";
+    const types = questionTypes?.length ? questionTypes.join(", ") : "multiple_choice";
+    const topics = focusTopics?.length ? `Focus on these topics: ${focusTopics.join(", ")}.` : "";
 
-    const prompt = `You are a quiz generator. Based on the following article titled "${title}", create a quiz with 5 multiple-choice questions.
+    const prompt = `You are an expert quiz generator. Based on the following article titled "${title}", create a quiz with exactly ${count} questions.
+
+Requirements:
+- Difficulty: ${diff}
+- Question types: ${types}
+- Language: ${lang}
+${topics}
 
 Return ONLY valid JSON in this exact format:
 {
   "title": "Quiz: ${title}",
+  "description": "A brief quiz description",
   "questions": [
     {
-      "question": "The question text",
+      "question_text": "The question text",
+      "question_type": "multiple_choice",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0,
-      "explanation": "Brief explanation of why this is correct"
+      "correct_answer": "0",
+      "explanation": "Brief explanation of why this is correct",
+      "difficulty": "${diff}",
+      "points": 1
     }
   ]
 }
 
+For correct_answer, use the index (0-based) of the correct option as a string.
+For true_false questions, use options: ["True", "False"] and correct_answer: "0" or "1".
+
 Article content:
-${content.slice(0, 8000)}`;
+${content.slice(0, 12000)}`;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -56,11 +74,11 @@ ${content.slice(0, 8000)}`;
       body: JSON.stringify({
         model: selectedModel,
         messages: [
-          { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown." },
+          { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown fences." },
           { role: "user", content: prompt },
         ],
         temperature: 0.7,
-        max_tokens: 2048,
+        max_tokens: 4096,
       }),
     });
 
@@ -71,18 +89,17 @@ ${content.slice(0, 8000)}`;
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content;
-    if (!text) {
-      throw new Error("No response from AI model");
-    }
+    if (!text) throw new Error("No response from AI model");
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Could not parse quiz from AI response");
-    }
+    if (!jsonMatch) throw new Error("Could not parse quiz from AI response");
 
     const quizData = JSON.parse(jsonMatch[0]);
 
-    return new Response(JSON.stringify(quizData), {
+    // Include usage stats
+    const usage = data.usage || {};
+
+    return new Response(JSON.stringify({ ...quizData, usage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
