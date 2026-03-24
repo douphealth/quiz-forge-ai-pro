@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2, Key, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 type Provider = "openrouter" | "gemini" | "claude";
 const OPENROUTER_STORAGE_KEY = "quizforge_openrouter_api_key";
@@ -56,6 +57,7 @@ const Index = () => {
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const effectiveModel = selectedModel === "custom" ? customModel : selectedModel;
 
@@ -111,12 +113,49 @@ const Index = () => {
       if (quizError) throw quizError;
       if (quizData?.error) throw new Error(quizData.error);
 
+      if (!user) {
+        navigate(`/quiz/preview-${Date.now()}`, {
+          state: {
+            previewQuiz: {
+              id: `preview-${Date.now()}`,
+              title: quizData.title,
+              questions: (quizData.questions || []).map((q: any, index: number) => ({
+                id: `preview-question-${index}`,
+                question: q.question_text || q.question,
+                question_text: q.question_text || q.question,
+                options: Array.isArray(q.options) ? q.options : [],
+                correctAnswer: Number.parseInt(String(q.correct_answer ?? q.correctAnswer ?? 0), 10) || 0,
+                explanation: q.explanation || undefined,
+                difficulty: q.difficulty || "medium",
+                points: q.points || 1,
+                order_index: index,
+              })),
+            },
+          },
+        });
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profile?.org_id) {
+        throw new Error("No organization found for your account.");
+      }
+
       const { data: savedQuiz, error: saveError } = await supabase.functions.invoke("save-quiz", {
         body: {
           title: quizData.title,
+          description: quizData.description,
           questions: quizData.questions,
           source_url: url.trim(),
           source_urls: [url.trim()],
+          created_by: user.id,
+          org_id: profile.org_id,
+          model: effectiveModel,
         },
       });
       if (saveError) throw saveError;
