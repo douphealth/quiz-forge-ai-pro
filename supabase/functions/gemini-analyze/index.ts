@@ -91,6 +91,36 @@ function getProviderConfig(provider: "lovable" | "openrouter", userApiKey?: stri
   };
 }
 
+function getOpenRouterProviderHint(model: string) {
+  const prefix = model.split("/")[0]?.trim();
+  if (!prefix) return undefined;
+
+  if (model.includes(":free")) {
+    return {
+      order: [prefix],
+      allow_fallbacks: false,
+    };
+  }
+
+  return {
+    order: [prefix],
+    allow_fallbacks: true,
+  };
+}
+
+function buildCompletionPayload(model: string, prompt: string, provider: "lovable" | "openrouter") {
+  return {
+    model,
+    messages: [
+      { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown fences." },
+      { role: "user", content: prompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 4096,
+    ...(provider === "openrouter" ? { provider: getOpenRouterProviderHint(model) } : {}),
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -156,23 +186,16 @@ ${content.slice(0, 12000)}`;
       console.warn(`[gemini-analyze] ${resolved.warning}`);
     }
 
-    const response = await fetch(config.url, {
+    let payload = buildCompletionPayload(resolved.model, prompt, resolved.provider);
+
+    let response = await fetch(config.url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
         ...config.headers,
       },
-      body: JSON.stringify({
-        model: resolved.model,
-        messages: [
-          { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown fences." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 4096,
-        ...(resolved.provider === "openrouter" ? { provider: { allow_fallbacks: true } } : {}),
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (response.status === 429) {
@@ -189,8 +212,62 @@ ${content.slice(0, 12000)}`;
     }
 
     if (!response.ok) {
-      const errText = await response.text();
+      let errText = await response.text();
       console.error(`[gemini-analyze] ${resolved.provider} error ${response.status}:`, errText);
+
+      if (resolved.provider === "openrouter" && response.status === 404) {
+        try {
+          const errJson = JSON.parse(errText);
+          const availableProviders = errJson?.error?.metadata?.available_providers;
+          if (Array.isArray(availableProviders) && availableProviders.length > 0) {
+            console.warn(`[gemini-analyze] retrying with OpenRouter providers: ${availableProviders.join(", ")}`);
+            payload = {
+              ...buildCompletionPayload(resolved.model, prompt, resolved.provider),
+              provider: {
+                order: availableProviders,
+                allow_fallbacks: false,
+              },
+            };
+
+            response = await fetch(config.url, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${config.apiKey}`,
+                "Content-Type": "application/json",
+                ...config.headers,
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const text = data.choices?.[0]?.message?.content;
+              if (!text) throw new Error("No response from AI model");
+
+              const jsonMatch = text.match(/\{[\s\S]*\}/);
+              if (!jsonMatch) throw new Error("Could not parse quiz JSON from AI response");
+
+              const quizData = JSON.parse(jsonMatch[0]);
+              const usage = data.usage || {};
+
+              return new Response(JSON.stringify({
+                ...quizData,
+                usage,
+                provider: resolved.provider,
+                model: resolved.model,
+                warning: resolved.warning,
+              }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+
+            errText = await response.text();
+            console.error(`[gemini-analyze] retry failed ${response.status}:`, errText);
+          }
+        } catch {
+          // fall through to normal error handling
+        }
+      }
 
       // Try to extract a useful message from the error response
       let userMessage = `AI provider error (${response.status})`;
