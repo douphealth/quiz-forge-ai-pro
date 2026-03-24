@@ -12,9 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY not configured");
+    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+    if (!OPENROUTER_API_KEY) {
+      throw new Error("OPENROUTER_API_KEY not configured");
     }
 
     const { content, title } = await req.json();
@@ -43,36 +43,40 @@ Return ONLY valid JSON in this exact format:
 Article content:
 ${content.slice(0, 8000)}`;
 
-    const geminiResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 2048,
-          },
-        }),
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://quizforge-ai.lovable.app",
+        "X-Title": "QuizForge AI",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 2048,
+      }),
+    });
 
-    if (!geminiResp.ok) {
-      const errText = await geminiResp.text();
-      throw new Error(`Gemini API error: ${errText}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
     }
 
-    const geminiData = await geminiResp.json();
-    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content;
     if (!text) {
-      throw new Error("No response from Gemini");
+      throw new Error("No response from OpenRouter");
     }
 
     // Extract JSON from response (handle markdown code blocks)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error("Could not parse quiz from Gemini response");
+      throw new Error("Could not parse quiz from response");
     }
 
     const quizData = JSON.parse(jsonMatch[0]);
