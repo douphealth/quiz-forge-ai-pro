@@ -65,6 +65,14 @@ export function StepConfigureQuiz() {
   const [useCustomModel, setUseCustomModel] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
+  // Load saved API key from Settings on mount
+  useState(() => {
+    if (!store.openrouterApiKey) {
+      const saved = localStorage.getItem("quizforge_openrouter_api_key");
+      if (saved) store.setField("openrouterApiKey", saved);
+    }
+  });
+
   const toggleType = (id: string) => {
     const current = store.questionTypes;
     store.setField("questionTypes",
