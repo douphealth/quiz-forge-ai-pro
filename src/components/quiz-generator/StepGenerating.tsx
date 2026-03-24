@@ -35,13 +35,18 @@ export function StepGenerating() {
     const generate = async () => {
       try {
         // 1. Generate quiz via AI
+        // Resolve API key: prefer store value, fall back to saved settings
+        const resolvedApiKey = store.provider === "openrouter"
+          ? (store.openrouterApiKey || localStorage.getItem("quizforge_openrouter_api_key") || undefined)
+          : undefined;
+
         const { data: quizData, error: quizError } = await supabase.functions.invoke("gemini-analyze", {
           body: {
             content: store.contentBody,
             title: store.contentTitle,
             provider: store.provider,
             model: store.model,
-            openrouter_api_key: store.provider === "openrouter" && store.openrouterApiKey ? store.openrouterApiKey : undefined,
+            openrouter_api_key: resolvedApiKey,
             numQuestions: store.numQuestions,
             difficulty: store.difficulty,
             questionTypes: store.questionTypes,
