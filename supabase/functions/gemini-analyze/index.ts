@@ -27,11 +27,11 @@ const LOVABLE_ALLOWED_MODELS = new Set([
   "openai/gpt-5.2",
 ]);
 
-function getProviderConfig(provider: string): ProviderConfig {
+function getProviderConfig(provider: string, userApiKey?: string): ProviderConfig {
   switch (provider) {
     case "openrouter": {
-      const key = Deno.env.get("OPENROUTER_API_KEY");
-      if (!key) throw new Error("OPENROUTER_API_KEY is not configured. Add it in Supabase Edge Function secrets.");
+      const key = userApiKey || Deno.env.get("OPENROUTER_API_KEY");
+      if (!key) throw new Error("No OpenRouter API key available. Please enter your API key in the quiz configuration, or ask an admin to add OPENROUTER_API_KEY in Edge Function secrets.");
       return {
         url: "https://openrouter.ai/api/v1/chat/completions",
         apiKey: key,
