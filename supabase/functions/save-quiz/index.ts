@@ -17,17 +17,51 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { title, questions, source_url } = await req.json();
+    const { title, description, questions, source_urls, created_by, org_id, model, connection_id } = await req.json();
 
-    const { data, error } = await supabase
+    if (!title || !questions || !created_by || !org_id) {
+      return new Response(JSON.stringify({ error: "title, questions, created_by, and org_id are required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 1. Create the quiz
+    const { data: quiz, error: quizError } = await supabase
       .from("quizzes")
-      .insert({ title, questions, source_url })
+      .insert({
+        title,
+        description: description || null,
+        source_urls: source_urls || [],
+        created_by,
+        org_id,
+        ai_model: model || null,
+        connection_id: connection_id || null,
+        status: "draft",
+        visibility: "private",
+      })
       .select()
       .single();
 
-    if (error) throw error;
+    if (quizError) throw quizError;
 
-    return new Response(JSON.stringify(data), {
+    // 2. Insert questions
+    const questionRows = questions.map((q: any, i: number) => ({
+      quiz_id: quiz.id,
+      question_text: q.question_text || q.question,
+      question_type: q.question_type || "multiple_choice",
+      options: q.options || [],
+      correct_answer: String(q.correct_answer ?? q.correctAnswer ?? "0"),
+      explanation: q.explanation || null,
+      difficulty: q.difficulty || "medium",
+      points: q.points || 1,
+      order_index: i,
+    }));
+
+    const { error: qError } = await supabase.from("questions").insert(questionRows);
+    if (qError) throw qError;
+
+    return new Response(JSON.stringify({ id: quiz.id, title: quiz.title, questionCount: questionRows.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
