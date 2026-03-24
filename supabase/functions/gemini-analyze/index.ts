@@ -171,6 +171,7 @@ ${content.slice(0, 12000)}`;
         ],
         temperature: 0.7,
         max_tokens: 4096,
+        ...(resolved.provider === "openrouter" ? { provider: { allow_fallbacks: true } } : {}),
       }),
     });
 
@@ -178,19 +179,13 @@ ${content.slice(0, 12000)}`;
       const msg = resolved.provider === "lovable"
         ? "Rate limit exceeded. Please wait a moment and try again."
         : "OpenRouter rate limit exceeded. Check your plan limits.";
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     if (response.status === 402) {
       const msg = resolved.provider === "lovable"
         ? "AI credits exhausted. Add credits in Lovable workspace Settings → Usage."
         : "OpenRouter credits exhausted. Top up your OpenRouter account.";
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (!response.ok) {
@@ -205,13 +200,7 @@ ${content.slice(0, 12000)}`;
         if (detail) userMessage = String(detail);
       } catch { /* use default message */ }
 
-      return new Response(JSON.stringify({
-        error: userMessage,
-        warning: resolved.warning,
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ error: userMessage, warning: resolved.warning }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const data = await response.json();
