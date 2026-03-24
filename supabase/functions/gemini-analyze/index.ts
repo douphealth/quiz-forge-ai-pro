@@ -209,7 +209,7 @@ ${content.slice(0, 12000)}`;
     const quizData = JSON.parse(jsonMatch[0]);
     const usage = data.usage || {};
 
-    return new Response(JSON.stringify({ ...quizData, usage, provider: selectedProvider, model: selectedModel }), {
+    return new Response(JSON.stringify({ ...quizData, usage, provider: selectedProvider, model: selectedModel, warning }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
