@@ -98,8 +98,8 @@ serve(async (req) => {
       });
     }
 
-    const selectedProvider = provider || "lovable";
-    const selectedModel = model || "google/gemini-3-flash-preview";
+    const selectedProvider = normalizeProvider(provider);
+    const { model: selectedModel, warning } = normalizeModel(selectedProvider, model);
     const count = numQuestions || 5;
     const diff = difficulty || "medium";
     const lang = language || "English";
