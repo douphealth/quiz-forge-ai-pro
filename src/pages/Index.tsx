@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2 } from "lucide-react";
+import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2, Key, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 type Provider = "openrouter" | "gemini" | "claude";
+const OPENROUTER_STORAGE_KEY = "quizforge_openrouter_api_key";
 
 const PRESET_MODELS: Record<Provider, { label: string; models: { value: string; label: string }[] }> = {
   openrouter: {
@@ -51,9 +53,16 @@ const Index = () => {
   const [selectedModel, setSelectedModel] = useState("google/gemini-2.5-flash");
   const [customModel, setCustomModel] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
   const navigate = useNavigate();
 
   const effectiveModel = selectedModel === "custom" ? customModel : selectedModel;
+
+  useEffect(() => {
+    const storedKey = localStorage.getItem(OPENROUTER_STORAGE_KEY);
+    if (storedKey) setApiKey(storedKey);
+  }, []);
 
   const handleProviderChange = (p: Provider) => {
     setProvider(p);
@@ -70,15 +79,34 @@ const Index = () => {
       toast({ title: "Please select or enter a model", variant: "destructive" });
       return;
     }
+
+    const trimmedApiKey = apiKey.trim();
+    if (provider === "openrouter" && selectedModel === "custom" && !trimmedApiKey) {
+      toast({ title: "Add your OpenRouter API key", description: "Custom OpenRouter models need your API key.", variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     try {
+      if (trimmedApiKey) {
+        localStorage.setItem(OPENROUTER_STORAGE_KEY, trimmedApiKey);
+      } else {
+        localStorage.removeItem(OPENROUTER_STORAGE_KEY);
+      }
+
       const { data: wpData, error: wpError } = await supabase.functions.invoke("wordpress-proxy", {
         body: { url: url.trim() },
       });
       if (wpError) throw wpError;
 
       const { data: quizData, error: quizError } = await supabase.functions.invoke("gemini-analyze", {
-        body: { content: wpData.content, title: wpData.title, model: effectiveModel },
+        body: {
+          content: wpData.content,
+          title: wpData.title,
+          model: effectiveModel,
+          provider: "openrouter",
+          openrouter_api_key: trimmedApiKey || undefined,
+        },
       });
       if (quizError) throw quizError;
 
@@ -211,6 +239,33 @@ const Index = () => {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="homepage-openrouter-key" className="flex items-center gap-2 text-sm text-foreground">
+                    <Key className="h-4 w-4 text-primary" />
+                    OpenRouter API Key
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="homepage-openrouter-key"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="sk-or-v1-..."
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((value) => !value)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Paste your OpenRouter key here to use your own credits for this screen. It stays saved locally in your browser.
+                  </p>
+                </div>
+
                 {/* Custom model input (OpenRouter only) */}
                 {selectedModel === "custom" && (
                   <div className="space-y-2">
@@ -236,7 +291,7 @@ const Index = () => {
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  All models are routed through OpenRouter. Pick a provider shortcut or enter any custom model.
+                  All models here are routed through OpenRouter. Pick a preset or enter any custom model, then use your key above if needed.
                 </p>
               </motion.div>
             )}
