@@ -24,103 +24,43 @@ const LOVABLE_ALLOWED_MODELS = new Set([
 function resolveProviderAndModel(
   requestedProvider: string | undefined,
   requestedModel: string | undefined,
-  userApiKey: string | undefined
+  userApiKey: string | undefined,
 ): { provider: "lovable" | "openrouter"; model: string; warning: string | null } {
   const model = typeof requestedModel === "string" ? requestedModel.trim() : "";
 
-  // If user explicitly chose openrouter
   if (requestedProvider === "openrouter") {
-    return {
-      provider: "openrouter",
-      model: model || "anthropic/claude-sonnet-4",
-      warning: model ? null : "No model specified — defaulting to Claude Sonnet 4.",
-    };
+    return { provider: "openrouter", model: model || "anthropic/claude-sonnet-4", warning: null };
   }
 
-  // If provider is "lovable" (or default), check if model is supported
   if (model && LOVABLE_ALLOWED_MODELS.has(model)) {
     return { provider: "lovable", model, warning: null };
   }
 
-  // Model not in Lovable's allowed list — try OpenRouter if we have a key
   if (model && !LOVABLE_ALLOWED_MODELS.has(model)) {
     const orKey = userApiKey || Deno.env.get("OPENROUTER_API_KEY");
     if (orKey) {
-      return {
-        provider: "openrouter",
-        model,
-        warning: `Model "${model}" is not available on Lovable AI. Automatically routed to OpenRouter.`,
-      };
+      return { provider: "openrouter", model, warning: `Model "${model}" routed to OpenRouter.` };
     }
-    // No OpenRouter key available — fall back to default Lovable model
-    return {
-      provider: "lovable",
-      model: "google/gemini-3-flash-preview",
-      warning: `Model "${model}" is not supported by Lovable AI and no OpenRouter API key is available. Using google/gemini-3-flash-preview instead.`,
-    };
+    return { provider: "lovable", model: "google/gemini-3-flash-preview", warning: `No OpenRouter key — using Gemini 3 Flash.` };
   }
 
-  // No model specified, use default
   return { provider: "lovable", model: "google/gemini-3-flash-preview", warning: null };
 }
 
 function getProviderConfig(provider: "lovable" | "openrouter", userApiKey?: string) {
   if (provider === "openrouter") {
     const key = userApiKey || Deno.env.get("OPENROUTER_API_KEY");
-    if (!key) {
-      throw new Error(
-        "No OpenRouter API key available. Please enter your API key in the quiz configuration step, or save one in Settings."
-      );
-    }
+    if (!key) throw new Error("No OpenRouter API key. Enter your key in the Configure step.");
     return {
       url: "https://openrouter.ai/api/v1/chat/completions",
       apiKey: key,
-      headers: {
-        "HTTP-Referer": "https://quizforge-ai.lovable.app",
-        "X-Title": "QuizForge AI",
-      },
+      headers: { "HTTP-Referer": "https://quizforge-ai.lovable.app", "X-Title": "QuizForge AI" },
     };
   }
 
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
-  return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    apiKey: key,
-    headers: {},
-  };
-}
-
-function getOpenRouterProviderHint(model: string) {
-  const prefix = model.split("/")[0]?.trim();
-  if (!prefix) return undefined;
-
-  if (model.includes(":free")) {
-    return {
-      order: [prefix],
-      allow_fallbacks: false,
-    };
-  }
-
-  return {
-    order: [prefix],
-    allow_fallbacks: true,
-  };
-}
-
-function buildCompletionPayload(model: string, prompt: string, provider: "lovable" | "openrouter") {
-  const openRouterProvider = provider === "openrouter" ? getOpenRouterProviderHint(model) : undefined;
-
-  return {
-    model,
-    messages: [
-      { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown fences." },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 4096,
-    ...(openRouterProvider ? { provider: openRouterProvider, route: openRouterProvider } : {}),
-  };
+  return { url: "https://ai.gateway.lovable.dev/v1/chat/completions", apiKey: key, headers: {} };
 }
 
 serve(async (req) => {
@@ -184,13 +124,28 @@ ${content.slice(0, 12000)}`;
     const config = getProviderConfig(resolved.provider, userKey);
 
     console.log(`[gemini-analyze] provider=${resolved.provider} model=${resolved.model}`);
-    if (resolved.warning) {
-      console.warn(`[gemini-analyze] ${resolved.warning}`);
-    }
+    if (resolved.warning) console.warn(`[gemini-analyze] ${resolved.warning}`);
 
-    let payload = buildCompletionPayload(resolved.model, prompt, resolved.provider);
+    // Build the request — for OpenRouter, add provider routing hint
+    const providerSlug = resolved.model.split("/")[0]?.trim();
+    const openRouterHint = resolved.provider === "openrouter" && providerSlug
+      ? { provider: { order: [providerSlug], allow_fallbacks: true } }
+      : {};
 
-    let response = await fetch(config.url, {
+    const payload = {
+      model: resolved.model,
+      messages: [
+        { role: "system", content: "You are a quiz generator. Return only valid JSON, no markdown fences." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4096,
+      ...openRouterHint,
+    };
+
+    console.log(`[gemini-analyze] payload provider hint:`, JSON.stringify(openRouterHint));
+
+    const response = await fetch(config.url, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${config.apiKey}`,
@@ -201,91 +156,37 @@ ${content.slice(0, 12000)}`;
     });
 
     if (response.status === 429) {
-      const msg = resolved.provider === "lovable"
-        ? "Rate limit exceeded. Please wait a moment and try again."
-        : "OpenRouter rate limit exceeded. Check your plan limits.";
-      return new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Wait a moment and try again." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
     if (response.status === 402) {
-      const msg = resolved.provider === "lovable"
-        ? "AI credits exhausted. Add credits in Lovable workspace Settings → Usage."
-        : "OpenRouter credits exhausted. Top up your OpenRouter account.";
-      return new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Credits exhausted. Top up your account." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!response.ok) {
-      let errText = await response.text();
+      const errText = await response.text();
       console.error(`[gemini-analyze] ${resolved.provider} error ${response.status}:`, errText);
 
-      if (resolved.provider === "openrouter" && response.status === 404) {
-        try {
-          const errJson = JSON.parse(errText);
-          const availableProviders = errJson?.error?.metadata?.available_providers;
-          if (Array.isArray(availableProviders) && availableProviders.length > 0) {
-            console.warn(`[gemini-analyze] retrying with OpenRouter providers: ${availableProviders.join(", ")}`);
-            payload = {
-              ...buildCompletionPayload(resolved.model, prompt, resolved.provider),
-              provider: {
-                only: availableProviders,
-                order: availableProviders,
-                allow_fallbacks: false,
-              },
-              route: {
-                only: availableProviders,
-                order: availableProviders,
-                allow_fallbacks: false,
-              },
-            };
-
-            response = await fetch(config.url, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${config.apiKey}`,
-                "Content-Type": "application/json",
-                ...config.headers,
-              },
-              body: JSON.stringify(payload),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const text = data.choices?.[0]?.message?.content;
-              if (!text) throw new Error("No response from AI model");
-
-              const jsonMatch = text.match(/\{[\s\S]*\}/);
-              if (!jsonMatch) throw new Error("Could not parse quiz JSON from AI response");
-
-              const quizData = JSON.parse(jsonMatch[0]);
-              const usage = data.usage || {};
-
-              return new Response(JSON.stringify({
-                ...quizData,
-                usage,
-                provider: resolved.provider,
-                model: resolved.model,
-                warning: resolved.warning,
-              }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              });
-            }
-
-            errText = await response.text();
-            console.error(`[gemini-analyze] retry failed ${response.status}:`, errText);
-          }
-        } catch {
-          // fall through to normal error handling
-        }
-      }
-
-      // Try to extract a useful message from the error response
       let userMessage = `AI provider error (${response.status})`;
       try {
         const errJson = JSON.parse(errText);
-        const detail = errJson?.error?.message || errJson?.error || errJson?.message;
-        if (detail) userMessage = String(detail);
+        const msg = errJson?.error?.message || errJson?.error || errJson?.message;
+        if (msg) {
+          userMessage = String(msg);
+          // If the model's provider isn't accessible, give a helpful message
+          if (userMessage.includes("No allowed providers")) {
+            const available = errJson?.error?.metadata?.available_providers;
+            userMessage = `Model "${resolved.model}" requires provider "${available?.join(", ") || "unknown"}" which is not enabled for this API key. Try using your own OpenRouter API key, or choose a different model.`;
+          }
+        }
       } catch { /* use default message */ }
 
-      return new Response(JSON.stringify({ error: userMessage, warning: resolved.warning }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: userMessage, warning: resolved.warning }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
