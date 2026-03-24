@@ -12,6 +12,21 @@ interface ProviderConfig {
   headers: Record<string, string>;
 }
 
+const LOVABLE_ALLOWED_MODELS = new Set([
+  "google/gemini-2.5-pro",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-3-flash-preview",
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-3.1-pro-preview",
+  "google/gemini-3.1-flash-image-preview",
+  "openai/gpt-5",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "openai/gpt-5.2",
+]);
+
 function getProviderConfig(provider: string): ProviderConfig {
   switch (provider) {
     case "openrouter": {
@@ -37,6 +52,32 @@ function getProviderConfig(provider: string): ProviderConfig {
       };
     }
   }
+}
+
+function normalizeProvider(provider: unknown): "lovable" | "openrouter" {
+  return provider === "openrouter" ? "openrouter" : "lovable";
+}
+
+function normalizeModel(provider: "lovable" | "openrouter", model: unknown) {
+  const requestedModel = typeof model === "string" ? model.trim() : "";
+
+  if (provider === "openrouter") {
+    return {
+      model: requestedModel || "anthropic/claude-sonnet-4",
+      warning: requestedModel ? null : "No OpenRouter model was provided, so Claude Sonnet 4 was selected automatically.",
+    };
+  }
+
+  if (requestedModel && LOVABLE_ALLOWED_MODELS.has(requestedModel)) {
+    return { model: requestedModel, warning: null };
+  }
+
+  return {
+    model: "google/gemini-3-flash-preview",
+    warning: requestedModel
+      ? `Model \"${requestedModel}\" is not supported by Lovable AI. Automatically switched to google/gemini-3-flash-preview.`
+      : null,
+  };
 }
 
 serve(async (req) => {
