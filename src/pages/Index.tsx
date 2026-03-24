@@ -109,15 +109,18 @@ const Index = () => {
         },
       });
       if (quizError) throw quizError;
+      if (quizData?.error) throw new Error(quizData.error);
 
       const { data: savedQuiz, error: saveError } = await supabase.functions.invoke("save-quiz", {
         body: {
           title: quizData.title,
           questions: quizData.questions,
           source_url: url.trim(),
+          source_urls: [url.trim()],
         },
       });
       if (saveError) throw saveError;
+      if (savedQuiz?.error) throw new Error(savedQuiz.error);
 
       navigate(`/quiz/${savedQuiz.id}`);
     } catch (err: any) {
