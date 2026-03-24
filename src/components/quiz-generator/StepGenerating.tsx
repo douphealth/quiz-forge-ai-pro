@@ -55,9 +55,18 @@ export function StepGenerating() {
           },
         });
         if (quizError) {
-          const message = quizError.message || "Quiz generation failed";
-          const details = typeof quizError.context === "string" ? quizError.context : "";
-          throw new Error(details || message);
+          // Try to extract body from FunctionsHttpError
+          let errorMsg = quizError.message || "Quiz generation failed";
+          try {
+            const body = typeof quizError.context === "object" ? quizError.context : JSON.parse(quizError.context || "{}");
+            if (body?.error) errorMsg = body.error;
+          } catch {
+            // Try reading response body directly
+            if (typeof (quizError as any).json === "function") {
+              try { const b = await (quizError as any).json(); if (b?.error) errorMsg = b.error; } catch {}
+            }
+          }
+          throw new Error(errorMsg);
         }
         if (quizData?.error) throw new Error(quizData.error);
         if (quizData?.warning) {
