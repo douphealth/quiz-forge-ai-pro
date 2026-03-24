@@ -63,6 +63,7 @@ export function StepConfigureQuiz() {
   const [topicInput, setTopicInput] = useState("");
   const [customModel, setCustomModel] = useState("");
   const [useCustomModel, setUseCustomModel] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   const toggleType = (id: string) => {
     const current = store.questionTypes;
