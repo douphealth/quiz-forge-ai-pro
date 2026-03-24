@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +16,14 @@ interface LoadedQuiz {
   questions: QuizQuestion[];
 }
 
+interface PreviewQuizState {
+  previewQuiz?: LoadedQuiz;
+}
+
 const QuizPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [quiz, setQuiz] = useState<LoadedQuiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentQ, setCurrentQ] = useState(0);
@@ -28,6 +33,13 @@ const QuizPage = () => {
   const [finished, setFinished] = useState(false);
 
   useEffect(() => {
+    const previewQuiz = (location.state as PreviewQuizState | null)?.previewQuiz;
+    if (previewQuiz) {
+      setQuiz(previewQuiz);
+      setLoading(false);
+      return;
+    }
+
     const fetchQuiz = async () => {
       const { data, error } = await supabase
         .from("quizzes")
@@ -58,7 +70,7 @@ const QuizPage = () => {
       setLoading(false);
     };
     fetchQuiz();
-  }, [id, navigate]);
+  }, [id, navigate, location.state]);
 
   if (loading || !quiz) {
     return (
