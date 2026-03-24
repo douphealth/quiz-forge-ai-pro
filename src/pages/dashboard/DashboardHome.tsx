@@ -1,29 +1,19 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuizzes } from "@/hooks/useQuizzes";
+import { useGlobalAnalytics } from "@/hooks/useAnalytics";
+import { useConnections } from "@/hooks/useConnections";
+import { StatsCard } from "@/components/analytics/StatsCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Brain, BarChart3, Link2, Sparkles, ArrowRight } from "lucide-react";
 
-const stats = [
-  { label: "Total Quizzes", value: "—", icon: FileText, color: "text-primary" },
-  { label: "Questions Generated", value: "—", icon: Brain, color: "text-accent" },
-  { label: "Avg Score", value: "—", icon: BarChart3, color: "text-emerald-500" },
-  { label: "Connections", value: "—", icon: Link2, color: "text-amber-500" },
-];
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-};
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-};
-
 export default function DashboardHome() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { data: analytics } = useGlobalAnalytics();
+  const { connections } = useConnections();
   const name = user?.user_metadata?.full_name?.split(" ")[0] || "there";
 
   return (
@@ -36,23 +26,12 @@ export default function DashboardHome() {
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((s) => (
-          <motion.div key={s.label} variants={item}>
-            <Card className="border-border/50 hover:border-primary/20 transition-colors">
-              <CardContent className="pt-6 flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                  <s.icon className={`h-5 w-5 ${s.color}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-display font-bold">{s.value}</p>
-                  <p className="text-sm text-muted-foreground">{s.label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatsCard icon={FileText} label="Total Quizzes" value={analytics?.totalQuizzes || 0} color="text-primary" index={0} />
+        <StatsCard icon={Brain} label="Questions Generated" value={analytics?.totalQuestions || 0} color="text-accent" index={1} />
+        <StatsCard icon={BarChart3} label="Avg Score" value={analytics?.avgScore || 0} suffix="%" color="text-success" index={2} />
+        <StatsCard icon={Link2} label="Connections" value={connections.length} color="text-warning" index={3} />
+      </div>
 
       {/* Quick Actions */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
@@ -83,16 +62,6 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
         </div>
-      </motion.div>
-
-      {/* Recent Activity Placeholder */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-        <h2 className="font-display text-lg font-semibold mb-4">Recent Activity</h2>
-        <Card className="border-border/50">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No activity yet. Generate your first quiz to get started!
-          </CardContent>
-        </Card>
       </motion.div>
     </div>
   );
