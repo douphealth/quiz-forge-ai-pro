@@ -17,10 +17,12 @@ const DashboardHome = lazy(() => import("./pages/dashboard/DashboardHome"));
 const ConnectionsPage = lazy(() => import("./pages/dashboard/ConnectionsPage"));
 const GeneratePage = lazy(() => import("./pages/dashboard/GeneratePage"));
 const QuizzesPage = lazy(() => import("./pages/dashboard/QuizzesPage"));
+const QuizDetailPage = lazy(() => import("./pages/dashboard/QuizDetailPage"));
 const AnalyticsPage = lazy(() => import("./pages/dashboard/AnalyticsPage"));
 const ActivityPage = lazy(() => import("./pages/dashboard/ActivityPage"));
 const SettingsPage = lazy(() => import("./pages/dashboard/SettingsPage"));
 const QuizPage = lazy(() => import("./pages/QuizPage"));
+const QuizTakingPage = lazy(() => import("./pages/QuizTakingPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -59,13 +61,16 @@ const App = () => (
                 <Route path="connections" element={<ConnectionsPage />} />
                 <Route path="generate" element={<GeneratePage />} />
                 <Route path="quizzes" element={<QuizzesPage />} />
+                <Route path="quizzes/:id" element={<QuizDetailPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="activity" element={<ActivityPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
 
-              {/* Public quiz */}
-              <Route path="/quiz/:id" element={<QuizPage />} />
+              {/* Public quiz taking */}
+              <Route path="/quiz/:slug" element={<QuizTakingPage />} />
+              {/* Legacy quiz page (preview from homepage) */}
+              <Route path="/quiz-preview/:id" element={<QuizPage />} />
               <Route path="/history" element={<HistoryPage />} />
 
               <Route path="*" element={<NotFound />} />
