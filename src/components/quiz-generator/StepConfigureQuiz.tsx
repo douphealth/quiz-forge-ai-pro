@@ -5,8 +5,9 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
-import { useQuizGenerationStore } from "@/stores/quizGenerationStore";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { X, Sparkles, Globe, Cpu } from "lucide-react";
+import { useQuizGenerationStore, type AIProvider } from "@/stores/quizGenerationStore";
 import { useState } from "react";
 
 const QUESTION_TYPES = [
@@ -23,13 +24,39 @@ const DIFFICULTIES = [
   { value: "mixed", label: "Mixed", color: "bg-primary/10 text-primary" },
 ];
 
-const PRESET_MODELS = [
-  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Fast)" },
-  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (Best)" },
-  { value: "openai/gpt-5-mini", label: "GPT-5 Mini" },
-  { value: "openai/gpt-5", label: "GPT-5" },
-];
+// Provider-specific model catalogs
+const PROVIDER_MODELS: Record<AIProvider, { value: string; label: string; badge?: string }[]> = {
+  lovable: [
+    { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash", badge: "Fast" },
+    { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", badge: "Balanced" },
+    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", badge: "Best" },
+    { value: "openai/gpt-5-mini", label: "GPT-5 Mini" },
+    { value: "openai/gpt-5", label: "GPT-5", badge: "Premium" },
+  ],
+  openrouter: [
+    { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", badge: "Popular" },
+    { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+    { value: "openai/gpt-4o", label: "GPT-4o" },
+    { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+    { value: "meta-llama/llama-3.1-70b-instruct", label: "Llama 3.1 70B" },
+    { value: "deepseek/deepseek-r1", label: "DeepSeek R1" },
+  ],
+};
+
+const PROVIDER_INFO: Record<AIProvider, { label: string; icon: React.ReactNode; description: string }> = {
+  lovable: {
+    label: "Lovable AI",
+    icon: <Sparkles className="h-4 w-4" />,
+    description: "Built-in AI — no API key needed",
+  },
+  openrouter: {
+    label: "OpenRouter",
+    icon: <Globe className="h-4 w-4" />,
+    description: "Access 200+ models including Claude, Gemini, Llama & more",
+  },
+};
 
 export function StepConfigureQuiz() {
   const store = useQuizGenerationStore();
@@ -54,6 +81,19 @@ export function StepConfigureQuiz() {
   const removeTopic = (t: string) => {
     store.setField("focusTopics", store.focusTopics.filter((x) => x !== t));
   };
+
+  const switchProvider = (provider: AIProvider) => {
+    store.setField("provider", provider);
+    setUseCustomModel(false);
+    setCustomModel("");
+    // Set default model for the provider
+    const models = PROVIDER_MODELS[provider];
+    if (models.length > 0) {
+      store.setField("model", models[0].value);
+    }
+  };
+
+  const currentModels = PROVIDER_MODELS[store.provider];
 
   return (
     <div className="space-y-6">
@@ -116,35 +156,89 @@ export function StepConfigureQuiz() {
         </div>
       </div>
 
-      {/* AI Model */}
-      <div className="space-y-2">
-        <Label>AI Model</Label>
-        {!useCustomModel ? (
-          <div className="space-y-2">
-            <Select value={store.model} onValueChange={(v) => store.setField("model", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PRESET_MODELS.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <button className="text-xs text-primary hover:underline" onClick={() => setUseCustomModel(true)}>
-              Use custom model ID
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Input
-              placeholder="e.g. deepseek/deepseek-r1"
-              value={customModel}
-              onChange={(e) => { setCustomModel(e.target.value); store.setField("model", e.target.value); }}
-            />
-            <button className="text-xs text-primary hover:underline" onClick={() => { setUseCustomModel(false); store.setField("model", PRESET_MODELS[0].value); }}>
-              Use preset model
-            </button>
-          </div>
-        )}
+      {/* AI Provider & Model Selection */}
+      <div className="space-y-3">
+        <Label className="flex items-center gap-2">
+          <Cpu className="h-4 w-4" />
+          AI Provider & Model
+        </Label>
+
+        <Tabs value={store.provider} onValueChange={(v) => switchProvider(v as AIProvider)}>
+          <TabsList className="grid w-full grid-cols-2">
+            {(Object.keys(PROVIDER_INFO) as AIProvider[]).map((key) => (
+              <TabsTrigger key={key} value={key} className="gap-2 text-xs sm:text-sm">
+                {PROVIDER_INFO[key].icon}
+                {PROVIDER_INFO[key].label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {(Object.keys(PROVIDER_INFO) as AIProvider[]).map((providerKey) => (
+            <TabsContent key={providerKey} value={providerKey} className="space-y-3 mt-3">
+              <p className="text-xs text-muted-foreground">{PROVIDER_INFO[providerKey].description}</p>
+
+              {!useCustomModel ? (
+                <div className="space-y-2">
+                  <Select value={store.model} onValueChange={(v) => store.setField("model", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVIDER_MODELS[providerKey].map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          <span className="flex items-center gap-2">
+                            {m.label}
+                            {m.badge && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                                {m.badge}
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {providerKey === "openrouter" && (
+                    <button
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => setUseCustomModel(true)}
+                    >
+                      Use custom model ID (any OpenRouter model)
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="e.g. anthropic/claude-opus-4, mistralai/mixtral-8x7b-instruct"
+                    value={customModel}
+                    onChange={(e) => {
+                      setCustomModel(e.target.value);
+                      store.setField("model", e.target.value);
+                    }}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Enter any model ID from{" "}
+                    <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      openrouter.ai/models
+                    </a>
+                  </p>
+                  <button
+                    className="text-xs text-primary hover:underline"
+                    onClick={() => {
+                      setUseCustomModel(false);
+                      setCustomModel("");
+                      const models = PROVIDER_MODELS[providerKey];
+                      if (models.length > 0) store.setField("model", models[0].value);
+                    }}
+                  >
+                    ← Back to preset models
+                  </button>
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
 
       {/* Language */}

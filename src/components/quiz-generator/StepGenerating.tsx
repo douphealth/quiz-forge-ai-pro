@@ -39,6 +39,7 @@ export function StepGenerating() {
           body: {
             content: store.contentBody,
             title: store.contentTitle,
+            provider: store.provider,
             model: store.model,
             numQuestions: store.numQuestions,
             difficulty: store.difficulty,

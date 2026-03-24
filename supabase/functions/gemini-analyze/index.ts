@@ -6,18 +6,50 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface ProviderConfig {
+  url: string;
+  apiKey: string;
+  headers: Record<string, string>;
+}
+
+function getProviderConfig(provider: string): ProviderConfig {
+  switch (provider) {
+    case "openrouter": {
+      const key = Deno.env.get("OPENROUTER_API_KEY");
+      if (!key) throw new Error("OPENROUTER_API_KEY is not configured. Add it in Supabase Edge Function secrets.");
+      return {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        apiKey: key,
+        headers: {
+          "HTTP-Referer": "https://quizforge-ai.lovable.app",
+          "X-Title": "QuizForge AI",
+        },
+      };
+    }
+    case "lovable":
+    default: {
+      const key = Deno.env.get("LOVABLE_API_KEY");
+      if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
+      return {
+        url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+        apiKey: key,
+        headers: {},
+      };
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
-    }
+    const {
+      content, title, model, provider,
+      numQuestions, difficulty, questionTypes, language, focusTopics,
+    } = await req.json();
 
-    const { content, title, model, numQuestions, difficulty, questionTypes, language, focusTopics } = await req.json();
     if (!content) {
       return new Response(JSON.stringify({ error: "Content is required" }), {
         status: 400,
@@ -25,6 +57,7 @@ serve(async (req) => {
       });
     }
 
+    const selectedProvider = provider || "lovable";
     const selectedModel = model || "google/gemini-3-flash-preview";
     const count = numQuestions || 5;
     const diff = difficulty || "medium";
@@ -63,11 +96,16 @@ For true_false questions, use options: ["True", "False"] and correct_answer: "0"
 Article content:
 ${content.slice(0, 12000)}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const config = getProviderConfig(selectedProvider);
+
+    console.log(`[gemini-analyze] provider=${selectedProvider} model=${selectedModel}`);
+
+    const response = await fetch(config.url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
+        ...config.headers,
       },
       body: JSON.stringify({
         model: selectedModel,
@@ -80,15 +118,21 @@ ${content.slice(0, 12000)}`;
       }),
     });
 
+    // Handle rate limits and payment errors
     if (response.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+      const msg = selectedProvider === "lovable"
+        ? "Rate limit exceeded. Please wait a moment and try again."
+        : "OpenRouter rate limit exceeded. Check your plan limits.";
+      return new Response(JSON.stringify({ error: msg }), {
         status: 429,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     if (response.status === 402) {
-      return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits in your Lovable workspace settings." }), {
+      const msg = selectedProvider === "lovable"
+        ? "AI credits exhausted. Add credits in Lovable workspace Settings → Usage."
+        : "OpenRouter credits exhausted. Top up your OpenRouter account.";
+      return new Response(JSON.stringify({ error: msg }), {
         status: 402,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -96,8 +140,19 @@ ${content.slice(0, 12000)}`;
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-      throw new Error(`AI gateway error (${response.status}): ${errText}`);
+      console.error(`[gemini-analyze] ${selectedProvider} error ${response.status}:`, errText);
+
+      // Provide actionable error for model not found
+      if (response.status === 404) {
+        return new Response(JSON.stringify({
+          error: `Model "${selectedModel}" is not available on ${selectedProvider === "lovable" ? "Lovable AI" : "OpenRouter"}. Please select a different model.`,
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      throw new Error(`AI provider error (${response.status})`);
     }
 
     const data = await response.json();
@@ -105,15 +160,16 @@ ${content.slice(0, 12000)}`;
     if (!text) throw new Error("No response from AI model");
 
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Could not parse quiz from AI response");
+    if (!jsonMatch) throw new Error("Could not parse quiz JSON from AI response");
 
     const quizData = JSON.parse(jsonMatch[0]);
     const usage = data.usage || {};
 
-    return new Response(JSON.stringify({ ...quizData, usage }), {
+    return new Response(JSON.stringify({ ...quizData, usage, provider: selectedProvider, model: selectedModel }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    console.error("[gemini-analyze] error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
