@@ -12,6 +12,21 @@ interface ProviderConfig {
   headers: Record<string, string>;
 }
 
+const LOVABLE_ALLOWED_MODELS = new Set([
+  "google/gemini-2.5-pro",
+  "google/gemini-2.5-flash",
+  "google/gemini-2.5-flash-lite",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-3-flash-preview",
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-3.1-pro-preview",
+  "google/gemini-3.1-flash-image-preview",
+  "openai/gpt-5",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "openai/gpt-5.2",
+]);
+
 function getProviderConfig(provider: string): ProviderConfig {
   switch (provider) {
     case "openrouter": {
@@ -39,6 +54,32 @@ function getProviderConfig(provider: string): ProviderConfig {
   }
 }
 
+function normalizeProvider(provider: unknown): "lovable" | "openrouter" {
+  return provider === "openrouter" ? "openrouter" : "lovable";
+}
+
+function normalizeModel(provider: "lovable" | "openrouter", model: unknown) {
+  const requestedModel = typeof model === "string" ? model.trim() : "";
+
+  if (provider === "openrouter") {
+    return {
+      model: requestedModel || "anthropic/claude-sonnet-4",
+      warning: requestedModel ? null : "No OpenRouter model was provided, so Claude Sonnet 4 was selected automatically.",
+    };
+  }
+
+  if (requestedModel && LOVABLE_ALLOWED_MODELS.has(requestedModel)) {
+    return { model: requestedModel, warning: null };
+  }
+
+  return {
+    model: "google/gemini-3-flash-preview",
+    warning: requestedModel
+      ? `Model \"${requestedModel}\" is not supported by Lovable AI. Automatically switched to google/gemini-3-flash-preview.`
+      : null,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,8 +98,8 @@ serve(async (req) => {
       });
     }
 
-    const selectedProvider = provider || "lovable";
-    const selectedModel = model || "google/gemini-3-flash-preview";
+    const selectedProvider = normalizeProvider(provider);
+    const { model: selectedModel, warning } = normalizeModel(selectedProvider, model);
     const count = numQuestions || 5;
     const diff = difficulty || "medium";
     const lang = language || "English";
@@ -99,6 +140,9 @@ ${content.slice(0, 12000)}`;
     const config = getProviderConfig(selectedProvider);
 
     console.log(`[gemini-analyze] provider=${selectedProvider} model=${selectedModel}`);
+    if (warning) {
+      console.warn(`[gemini-analyze] ${warning}`);
+    }
 
     const response = await fetch(config.url, {
       method: "POST",
@@ -142,10 +186,10 @@ ${content.slice(0, 12000)}`;
       const errText = await response.text();
       console.error(`[gemini-analyze] ${selectedProvider} error ${response.status}:`, errText);
 
-      // Provide actionable error for model not found
-      if (response.status === 404) {
+      if (response.status === 404 || response.status === 400) {
         return new Response(JSON.stringify({
           error: `Model "${selectedModel}" is not available on ${selectedProvider === "lovable" ? "Lovable AI" : "OpenRouter"}. Please select a different model.`,
+          warning,
         }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -165,7 +209,7 @@ ${content.slice(0, 12000)}`;
     const quizData = JSON.parse(jsonMatch[0]);
     const usage = data.usage || {};
 
-    return new Response(JSON.stringify({ ...quizData, usage, provider: selectedProvider, model: selectedModel }), {
+    return new Response(JSON.stringify({ ...quizData, usage, provider: selectedProvider, model: selectedModel, warning }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

@@ -48,8 +48,15 @@ export function StepGenerating() {
             focusTopics: store.focusTopics,
           },
         });
-        if (quizError) throw quizError;
+        if (quizError) {
+          const message = quizError.message || "Quiz generation failed";
+          const details = typeof quizError.context === "string" ? quizError.context : "";
+          throw new Error(details || message);
+        }
         if (quizData?.error) throw new Error(quizData.error);
+        if (quizData?.warning) {
+          toast({ title: "Model adjusted", description: quizData.warning });
+        }
 
         store.setField("generationStatus", "Saving quiz...");
 
