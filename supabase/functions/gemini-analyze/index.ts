@@ -12,9 +12,9 @@ serve(async (req) => {
   }
 
   try {
-    const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-    if (!OPENROUTER_API_KEY) {
-      throw new Error("OPENROUTER_API_KEY not configured");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY not configured");
     }
 
     const { content, title, model, numQuestions, difficulty, questionTypes, language, focusTopics } = await req.json();
@@ -25,7 +25,7 @@ serve(async (req) => {
       });
     }
 
-    const selectedModel = model || "google/gemini-2.5-flash";
+    const selectedModel = model || "google/gemini-3-flash-preview";
     const count = numQuestions || 5;
     const diff = difficulty || "medium";
     const lang = language || "English";
@@ -63,13 +63,11 @@ For true_false questions, use options: ["True", "False"] and correct_answer: "0"
 Article content:
 ${content.slice(0, 12000)}`;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://quizforge-ai.lovable.app",
-        "X-Title": "QuizForge AI",
       },
       body: JSON.stringify({
         model: selectedModel,
@@ -82,9 +80,24 @@ ${content.slice(0, 12000)}`;
       }),
     });
 
+    if (response.status === 429) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (response.status === 402) {
+      return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits in your Lovable workspace settings." }), {
+        status: 402,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`OpenRouter API error (${response.status}): ${errText}`);
+      console.error("AI gateway error:", response.status, errText);
+      throw new Error(`AI gateway error (${response.status}): ${errText}`);
     }
 
     const data = await response.json();
@@ -95,8 +108,6 @@ ${content.slice(0, 12000)}`;
     if (!jsonMatch) throw new Error("Could not parse quiz from AI response");
 
     const quizData = JSON.parse(jsonMatch[0]);
-
-    // Include usage stats
     const usage = data.usage || {};
 
     return new Response(JSON.stringify({ ...quizData, usage }), {
