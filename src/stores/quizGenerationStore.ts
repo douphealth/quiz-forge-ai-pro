@@ -19,6 +19,7 @@ export interface QuizGenerationConfig {
   focusTopics: string[];
   provider: AIProvider;
   model: string;
+  openrouterApiKey: string;
 
   // State
   currentStep: number;
@@ -50,6 +51,7 @@ const initialState: QuizGenerationConfig = {
   focusTopics: [],
   provider: "lovable",
   model: "google/gemini-3-flash-preview",
+  openrouterApiKey: "",
   currentStep: 0,
   generating: false,
   generationStatus: "",

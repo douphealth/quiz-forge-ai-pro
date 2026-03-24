@@ -41,6 +41,7 @@ export function StepGenerating() {
             title: store.contentTitle,
             provider: store.provider,
             model: store.model,
+            openrouter_api_key: store.provider === "openrouter" && store.openrouterApiKey ? store.openrouterApiKey : undefined,
             numQuestions: store.numQuestions,
             difficulty: store.difficulty,
             questionTypes: store.questionTypes,
