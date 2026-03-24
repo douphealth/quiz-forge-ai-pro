@@ -109,6 +109,8 @@ function getOpenRouterProviderHint(model: string) {
 }
 
 function buildCompletionPayload(model: string, prompt: string, provider: "lovable" | "openrouter") {
+  const openRouterProvider = provider === "openrouter" ? getOpenRouterProviderHint(model) : undefined;
+
   return {
     model,
     messages: [
@@ -117,7 +119,7 @@ function buildCompletionPayload(model: string, prompt: string, provider: "lovabl
     ],
     temperature: 0.7,
     max_tokens: 4096,
-    ...(provider === "openrouter" ? { provider: getOpenRouterProviderHint(model) } : {}),
+    ...(openRouterProvider ? { provider: openRouterProvider, route: openRouterProvider } : {}),
   };
 }
 
@@ -224,6 +226,12 @@ ${content.slice(0, 12000)}`;
             payload = {
               ...buildCompletionPayload(resolved.model, prompt, resolved.provider),
               provider: {
+                only: availableProviders,
+                order: availableProviders,
+                allow_fallbacks: false,
+              },
+              route: {
+                only: availableProviders,
                 order: availableProviders,
                 allow_fallbacks: false,
               },
