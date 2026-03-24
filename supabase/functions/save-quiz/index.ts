@@ -19,22 +19,53 @@ serve(async (req) => {
 
     const { title, description, questions, source_urls, created_by, org_id, model, connection_id } = await req.json();
 
-    if (!title || !questions || !created_by || !org_id) {
-      return new Response(JSON.stringify({ error: "title, questions, created_by, and org_id are required" }), {
+    if (!title || !questions) {
+      return new Response(JSON.stringify({ error: "title and questions are required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 1. Create the quiz
+    // Resolve created_by and org_id: use provided values, or fall back to
+    // extracting the user from the JWT, or use a default anonymous org.
+    let resolvedCreatedBy = created_by;
+    let resolvedOrgId = org_id;
+
+    if (!resolvedCreatedBy || !resolvedOrgId) {
+      // Try to get the user from the Authorization header
+      const authHeader = req.headers.get("authorization");
+      if (authHeader) {
+        const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+        if (user) {
+          resolvedCreatedBy = resolvedCreatedBy || user.id;
+          if (!resolvedOrgId) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("org_id")
+              .eq("id", user.id)
+              .single();
+            resolvedOrgId = profile?.org_id;
+          }
+        }
+      }
+    }
+
+    if (!resolvedCreatedBy || !resolvedOrgId) {
+      return new Response(JSON.stringify({ error: "Authentication required. Please log in to save quizzes." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 1. Create the quiz  
     const { data: quiz, error: quizError } = await supabase
       .from("quizzes")
       .insert({
         title,
         description: description || null,
         source_urls: source_urls || [],
-        created_by,
-        org_id,
+        created_by: resolvedCreatedBy,
+        org_id: resolvedOrgId,
         ai_model: model || null,
         connection_id: connection_id || null,
         status: "draft",
