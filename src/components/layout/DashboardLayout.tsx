@@ -17,7 +17,7 @@ export function DashboardLayout() {
           <DashboardSidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <TopBar />
-            <main className="flex-1 p-6">
+            <main className="flex-1 p-3 sm:p-4 md:p-6">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}

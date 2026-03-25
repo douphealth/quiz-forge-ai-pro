@@ -33,31 +33,31 @@ export const QuestionRenderer = memo(function QuestionRenderer({
   const { question_text, question_type, options, difficulty, points, bloom_taxonomy_level } = question;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Meta */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Badge variant="outline" className={cn("text-xs", difficultyColors[difficulty || "medium"])}>
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <Badge variant="outline" className={cn("text-[10px] sm:text-xs", difficultyColors[difficulty || "medium"])}>
           {difficulty || "medium"}
         </Badge>
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-[10px] sm:text-xs">
           {points || 1} pt{(points || 1) > 1 ? "s" : ""}
         </Badge>
         {bloom_taxonomy_level && (
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-[10px] sm:text-xs hidden sm:inline-flex">
             {bloom_taxonomy_level}
           </Badge>
         )}
-        <span className="text-xs text-muted-foreground ml-auto">Q{questionIndex + 1}</span>
+        <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto font-medium">Q{questionIndex + 1}</span>
       </div>
 
       {/* Question text */}
-      <h2 className="font-display text-xl sm:text-2xl font-semibold text-foreground leading-relaxed">
+      <h2 className="font-display text-lg sm:text-xl md:text-2xl font-semibold text-foreground leading-relaxed">
         {question_text}
       </h2>
 
       {/* Answer options */}
       {(question_type === "multiple_choice" || question_type === "multiple-choice") && (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {options.map((opt, i) => {
             const isSelected = selectedAnswer === i;
             return (
@@ -66,17 +66,17 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 onClick={() => onSelectAnswer(i)}
                 whileTap={{ scale: 0.98 }}
                 className={cn(
-                  "w-full text-left px-5 py-4 rounded-xl border-2 transition-all duration-200",
-                  "hover:border-primary/40 hover:bg-primary/5",
+                  "w-full text-left px-3.5 py-3 sm:px-5 sm:py-4 rounded-xl border-2 transition-all duration-200",
+                  "hover:border-primary/40 hover:bg-primary/5 active:scale-[0.99]",
                   isSelected
                     ? "border-primary bg-primary/10 shadow-sm"
                     : "border-border bg-card"
                 )}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2.5 sm:gap-3">
                   <span
                     className={cn(
-                      "shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors",
+                      "shrink-0 h-6 w-6 sm:h-7 sm:w-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold border-2 transition-colors",
                       isSelected
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-muted-foreground/30 text-muted-foreground"
@@ -84,7 +84,10 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                   >
                     {String.fromCharCode(65 + i)}
                   </span>
-                  <span className={cn("text-sm sm:text-base", isSelected ? "text-foreground font-medium" : "text-foreground/80")}>
+                  <span className={cn(
+                    "text-sm sm:text-base leading-relaxed",
+                    isSelected ? "text-foreground font-medium" : "text-foreground/80"
+                  )}>
                     {opt}
                   </span>
                 </div>
@@ -95,7 +98,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
       )}
 
       {(question_type === "true_false" || question_type === "true-false") && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           {["True", "False"].map((opt, i) => {
             const isSelected = selectedAnswer === i;
             return (
@@ -104,7 +107,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
                 onClick={() => onSelectAnswer(i)}
                 whileTap={{ scale: 0.97 }}
                 className={cn(
-                  "px-6 py-8 rounded-xl border-2 text-center font-display text-lg font-semibold transition-all",
+                  "px-4 py-6 sm:px-6 sm:py-8 rounded-xl border-2 text-center font-display text-base sm:text-lg font-semibold transition-all active:scale-[0.98]",
                   isSelected
                     ? "border-primary bg-primary/10 shadow-sm"
                     : "border-border bg-card hover:border-primary/40"
@@ -123,7 +126,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
           value={(selectedAnswer as string) || ""}
           onChange={(e) => onSelectAnswer(e.target.value)}
           placeholder="Type your answer..."
-          className="w-full px-4 py-3 rounded-xl border-2 border-border bg-card focus:border-primary focus:outline-none text-base transition-colors"
+          className="w-full px-3.5 py-3 sm:px-4 sm:py-3 rounded-xl border-2 border-border bg-card focus:border-primary focus:outline-none text-sm sm:text-base transition-colors"
         />
       )}
 
@@ -133,7 +136,7 @@ export const QuestionRenderer = memo(function QuestionRenderer({
           onChange={(e) => onSelectAnswer(e.target.value)}
           placeholder="Write your answer..."
           rows={4}
-          className="w-full px-4 py-3 rounded-xl border-2 border-border bg-card focus:border-primary focus:outline-none text-base transition-colors resize-none"
+          className="w-full px-3.5 py-3 sm:px-4 sm:py-3 rounded-xl border-2 border-border bg-card focus:border-primary focus:outline-none text-sm sm:text-base transition-colors resize-none"
         />
       )}
     </div>
