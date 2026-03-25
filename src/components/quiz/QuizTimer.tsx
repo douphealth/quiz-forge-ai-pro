@@ -34,7 +34,7 @@ export function QuizTimer({ timeRemaining, onTimerEnd }: QuizTimerProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 text-sm font-mono font-semibold px-3 py-1.5 rounded-lg transition-colors",
+        "flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-mono font-semibold px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-colors",
         isCritical
           ? "bg-destructive/10 text-destructive animate-pulse"
           : isLow
@@ -42,7 +42,7 @@ export function QuizTimer({ timeRemaining, onTimerEnd }: QuizTimerProps) {
             : "bg-muted text-muted-foreground"
       )}
     >
-      <Clock className="h-3.5 w-3.5" />
+      <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
     </div>
   );

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2, Key, Eye, EyeOff } from "lucide-react";
+import { Zap, BookOpen, Brain, ArrowRight, Loader2, Settings2, Key, Eye, EyeOff, Sparkles, Shield, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -174,190 +174,260 @@ const Index = () => {
   };
 
   const features = [
-    { icon: BookOpen, title: "Paste a URL", desc: "Drop any WordPress article link" },
-    { icon: Brain, title: "AI Analyzes", desc: "Pick your favorite AI model" },
-    { icon: Zap, title: "Quiz Ready", desc: "Interactive quiz in seconds" },
+    { icon: BookOpen, title: "Paste a URL", desc: "Drop any WordPress article link and we'll extract the content automatically" },
+    { icon: Brain, title: "AI Analyzes", desc: "Choose from 10+ AI models to generate intelligent, engaging quiz questions" },
+    { icon: Zap, title: "Quiz Ready", desc: "Get a beautiful, interactive quiz you can embed anywhere in seconds" },
+  ];
+
+  const stats = [
+    { value: "10+", label: "AI Models" },
+    { value: "1-Click", label: "Embed" },
+    { value: "100%", label: "Responsive" },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <div className="container flex items-center justify-between">
-          <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Header */}
+      <header className="border-b border-border px-4 sm:px-6 py-3 bg-background/80 backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <h1 className="font-display text-lg sm:text-xl font-bold tracking-tight text-foreground">
             QuizForge<span className="text-primary">AI</span>
           </h1>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/history")}>
-            Quiz History
-          </Button>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <Button variant="default" size="sm" onClick={() => navigate("/dashboard")} className="text-xs sm:text-sm">
+                Dashboard
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/auth/login")} className="text-xs sm:text-sm">
+                  Sign in
+                </Button>
+                <Button variant="default" size="sm" onClick={() => navigate("/auth/signup")} className="text-xs sm:text-sm">
+                  Get Started
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center px-6 py-20">
-        <div className="container max-w-3xl text-center space-y-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-4"
-          >
-            <h2 className="font-display text-5xl font-bold tracking-tight text-foreground leading-tight">
-              Turn any article into
-              <br />
-              <span className="text-primary">an interactive quiz</span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              Paste a WordPress URL, choose your AI model, and get quiz questions instantly.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="space-y-4 max-w-lg mx-auto"
-          >
-            {/* URL input row */}
-            <div className="flex gap-3">
-              <Input
-                placeholder="https://your-wordpress-site.com/article..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
-                className="h-12 text-base"
-                disabled={loading}
-              />
-              <Button onClick={handleGenerate} disabled={loading} size="lg" className="h-12 px-6 gap-2">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                {loading ? "Generating..." : "Generate"}
-              </Button>
-            </div>
-
-            {/* Model settings toggle */}
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto"
+      {/* Hero */}
+      <main className="flex-1 flex flex-col">
+        <section className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12 sm:py-20">
+          <div className="max-w-3xl w-full text-center space-y-8 sm:space-y-12">
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
             >
-              <Settings2 className="h-4 w-4" />
-              <span>Model: {effectiveModel || "Select..."}</span>
-            </button>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium border border-primary/20">
+                <Sparkles className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                AI-Powered Quiz Generator
+              </span>
+            </motion.div>
 
-            {/* Model settings panel */}
-            {showSettings && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="rounded-xl border border-border bg-card p-4 space-y-4 text-left"
+            {/* Headline */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="space-y-3 sm:space-y-4"
+            >
+              <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.1]">
+                Turn any article into
+                <br />
+                <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  an interactive quiz
+                </span>
+              </h2>
+              <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                Paste a WordPress URL, choose your AI model, and get a beautiful embeddable quiz in seconds.
+              </p>
+            </motion.div>
+
+            {/* URL Input */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.25 }}
+              className="space-y-3 max-w-lg mx-auto"
+            >
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <Input
+                  placeholder="https://your-site.com/article..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+                  className="h-11 sm:h-12 text-sm sm:text-base flex-1"
+                  disabled={loading}
+                />
+                <Button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  size="lg"
+                  className="h-11 sm:h-12 px-5 sm:px-8 gap-2 font-semibold w-full sm:w-auto shrink-0"
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {loading ? "Generating..." : "Generate"}
+                </Button>
+              </div>
+
+              {/* Model toggle */}
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto"
               >
-                {/* Provider tabs */}
-                <div className="flex gap-2">
-                  {(Object.keys(PRESET_MODELS) as Provider[]).map((p) => (
-                    <Button
-                      key={p}
-                      variant={provider === p ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleProviderChange(p)}
-                      className="text-xs"
-                    >
-                      {PRESET_MODELS[p].label}
-                    </Button>
-                  ))}
-                </div>
+                <Settings2 className="h-3.5 w-3.5" />
+                <span className="truncate max-w-[200px] sm:max-w-none">Model: {effectiveModel || "Select..."}</span>
+              </button>
 
-                {/* Model selector */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Model</label>
-                  <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRESET_MODELS[provider].models.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Settings panel */}
+              <AnimatePresence>
+                {showSettings && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3 sm:space-y-4 text-left">
+                      {/* Provider tabs */}
+                      <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                        {(Object.keys(PRESET_MODELS) as Provider[]).map((p) => (
+                          <Button
+                            key={p}
+                            variant={provider === p ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handleProviderChange(p)}
+                            className="text-xs h-8"
+                          >
+                            {PRESET_MODELS[p].label}
+                          </Button>
+                        ))}
+                      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="homepage-openrouter-key" className="flex items-center gap-2 text-sm text-foreground">
-                    <Key className="h-4 w-4 text-primary" />
-                    OpenRouter API Key
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="homepage-openrouter-key"
-                      type={showApiKey ? "text" : "password"}
-                      placeholder="sk-or-v1-..."
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="pr-10 font-mono text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey((value) => !value)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Paste your OpenRouter key here to use your own credits for this screen. It stays saved locally in your browser.
-                  </p>
-                </div>
+                      {/* Model selector */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs sm:text-sm font-medium text-foreground">Model</label>
+                        <Select value={selectedModel} onValueChange={setSelectedModel}>
+                          <SelectTrigger className="h-9 sm:h-10 text-sm">
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRESET_MODELS[provider].models.map((m) => (
+                              <SelectItem key={m.value} value={m.value}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                {/* Custom model input (OpenRouter only) */}
-                {selectedModel === "custom" && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Custom Model ID</label>
-                    <Input
-                      placeholder="e.g. deepseek/deepseek-r1"
-                      value={customModel}
-                      onChange={(e) => setCustomModel(e.target.value)}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Enter any model ID from{" "}
-                      <a
-                        href="https://openrouter.ai/models"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        openrouter.ai/models
-                      </a>
-                    </p>
-                  </div>
+                      {/* API Key */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="homepage-openrouter-key" className="flex items-center gap-1.5 text-xs sm:text-sm text-foreground">
+                          <Key className="h-3.5 w-3.5 text-primary" />
+                          OpenRouter API Key
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="homepage-openrouter-key"
+                            type={showApiKey ? "text" : "password"}
+                            placeholder="sk-or-v1-..."
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            className="pr-10 font-mono text-xs sm:text-sm h-9 sm:h-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showApiKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground">
+                          Paste your OpenRouter key to use your own credits. Saved locally.
+                        </p>
+                      </div>
+
+                      {selectedModel === "custom" && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs sm:text-sm font-medium text-foreground">Custom Model ID</label>
+                          <Input
+                            placeholder="e.g. deepseek/deepseek-r1"
+                            value={customModel}
+                            onChange={(e) => setCustomModel(e.target.value)}
+                            className="text-xs sm:text-sm h-9 sm:h-10"
+                          />
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">
+                            Any model from{" "}
+                            <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                              openrouter.ai/models
+                            </a>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
                 )}
+              </AnimatePresence>
+            </motion.div>
 
-                <p className="text-xs text-muted-foreground">
-                  All models here are routed through OpenRouter. Pick a preset or enter any custom model, then use your key above if needed.
-                </p>
-              </motion.div>
-            )}
-          </motion.div>
+            {/* Stats row */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="flex items-center justify-center gap-6 sm:gap-10"
+            >
+              {stats.map((s, i) => (
+                <div key={i} className="text-center">
+                  <div className="text-lg sm:text-2xl font-bold text-primary font-display">{s.value}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider">{s.label}</div>
+                </div>
+              ))}
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8"
-          >
-            {features.map((f, i) => (
-              <Card key={i} className="border-border/50 bg-card/50 backdrop-blur-sm">
-                <CardContent className="pt-6 text-center space-y-3">
-                  <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <f.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-display font-semibold text-foreground">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground">{f.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </motion.div>
-        </div>
+            {/* Feature cards */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-4"
+            >
+              {features.map((f, i) => (
+                <Card key={i} className="border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/20 transition-all group">
+                  <CardContent className="p-4 sm:pt-6 sm:p-6 text-center space-y-2 sm:space-y-3">
+                    <div className="mx-auto w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                      <f.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                    </div>
+                    <h3 className="font-display font-semibold text-sm sm:text-base text-foreground">{f.title}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </motion.div>
+
+            {/* Trust indicators */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs text-muted-foreground pt-4"
+            >
+              <span className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" /> Enterprise-grade AI</span>
+              <span className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" /> Works on any website</span>
+              <span className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5" /> Instant embeds</span>
+            </motion.div>
+          </div>
+        </section>
       </main>
     </div>
   );
