@@ -204,7 +204,7 @@ export function QuizResults({ quiz }: QuizResultsProps) {
 
           <div className="space-y-2">
             <h2 className="font-display text-2xl sm:text-3xl font-bold">
-              {resultEmoji} {results.passed ? "You Passed!" : "Keep Learning!"}
+              {results.passed ? "🎉 Excellent Work!" : "💪 Keep Learning!"}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {results.correct}/{quiz.questions.length} correct · {results.earned}/{results.total} pts · {minutes}m {seconds}s
