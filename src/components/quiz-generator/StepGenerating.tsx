@@ -40,47 +40,51 @@ export function StepGenerating() {
           ? (store.openrouterApiKey || localStorage.getItem("quizforge_openrouter_api_key") || undefined)
           : undefined;
 
-        const { data: quizData, error: quizError } = await supabase.functions.invoke("gemini-analyze", {
-          body: {
-            content: store.contentBody,
-            title: store.contentTitle,
-            provider: store.provider,
-            model: store.model,
-            openrouter_api_key: resolvedApiKey,
-            numQuestions: store.numQuestions,
-            difficulty: store.difficulty,
-            questionTypes: store.questionTypes,
-            language: store.language,
-            focusTopics: store.focusTopics,
-          },
-        });
+        // Use AbortController for client-side timeout (130s, slightly above edge fn 120s)
+        const abortController = new AbortController();
+        const clientTimeout = setTimeout(() => abortController.abort(), 130_000);
+
+        let quizData: any;
+        let quizError: any;
+        try {
+          const result = await supabase.functions.invoke("gemini-analyze", {
+            body: {
+              content: store.contentBody,
+              title: store.contentTitle,
+              provider: store.provider,
+              model: store.model,
+              openrouter_api_key: resolvedApiKey,
+              numQuestions: store.numQuestions,
+              difficulty: store.difficulty,
+              questionTypes: store.questionTypes,
+              language: store.language,
+              focusTopics: store.focusTopics,
+            },
+          });
+          quizData = result.data;
+          quizError = result.error;
+        } catch (fetchErr: any) {
+          clearTimeout(clientTimeout);
+          if (fetchErr.name === "AbortError") {
+            throw new Error("Request timed out. The AI model is too slow. Try a faster model like google/gemini-3-flash-preview.");
+          }
+          throw fetchErr;
+        }
+        clearTimeout(clientTimeout);
+
         if (quizError) {
-          // Try to extract body from FunctionsHttpError
           let errorMsg = quizError.message || "Quiz generation failed";
+          // Extract error from response body
           try {
-            const body = typeof quizError.context === "object" ? quizError.context : JSON.parse(quizError.context || "{}");
-            if (body?.error) errorMsg = body.error;
-          } catch {
-            // Try reading response body directly
-            if (typeof (quizError as any).json === "function") {
-              try { const b = await (quizError as any).json(); if (b?.error) errorMsg = b.error; } catch {}
-            }
-          }
-          // Try to read the response body from FunctionsHttpError
-          if ((quizError as any)?.context?.body) {
-            try {
-              const b = JSON.parse((quizError as any).context.body);
-              if (b?.error) errorMsg = b.error;
-            } catch {}
-          }
-          // Try .json() method on the error context (Supabase SDK pattern)
-          if (typeof (quizError as any)?.context?.json === "function") {
-            try {
+            if (typeof (quizError as any)?.context?.json === "function") {
               const b = await (quizError as any).context.json();
               if (b?.error) errorMsg = b.error;
-            } catch {}
+            }
+          } catch {}
+          if (errorMsg.includes("non-2xx status code")) {
+            errorMsg = "Quiz generation failed. The AI model may be unavailable or too slow. Try a different model or check your API key.";
           }
-          throw new Error(errorMsg.replace("Edge Function returned a non-2xx status code", "Quiz generation failed. Check your API key and model selection."));
+          throw new Error(errorMsg);
         }
         if (quizData?.error) throw new Error(quizData.error);
         if (quizData?.warning) {
