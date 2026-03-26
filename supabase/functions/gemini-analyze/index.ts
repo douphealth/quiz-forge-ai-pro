@@ -173,15 +173,32 @@ serve(async (req) => {
       max_tokens: 8192,
     };
 
-    const response = await fetch(config.url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${config.apiKey}`,
-        "Content-Type": "application/json",
-        ...config.headers,
-      },
-      body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000); // 120s hard limit
+
+    let response: Response;
+    try {
+      response = await fetch(config.url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+          ...config.headers,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === "AbortError") {
+        return new Response(JSON.stringify({ error: "AI model took too long to respond (>120s). Try a faster model like google/gemini-3-flash-preview or a non-free OpenRouter model." }), {
+          status: 504,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeoutId);
 
     if (response.status === 429) {
       return new Response(JSON.stringify({ error: "Rate limit exceeded. Wait a moment and try again." }), {
