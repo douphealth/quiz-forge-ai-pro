@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,11 @@ import { cn } from "@/lib/utils";
 import {
   RotateCcw, Home, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Copy, Download, Loader2, Check,
-  Share2, Award,
+  Share2, Lightbulb, Trophy, Target,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import quizSuccessImg from "@/assets/quiz-success.png";
 
 interface QuizResultsProps {
   quiz: {
@@ -131,11 +132,9 @@ export function QuizResults({ quiz }: QuizResultsProps) {
   const minutes = Math.floor(results.timeSpent / 60);
   const seconds = results.timeSpent % 60;
 
-  const resultEmoji = results.scorePercent >= 90 ? "🏆" : results.scorePercent >= 70 ? "🎉" : results.scorePercent >= 50 ? "👍" : "📚";
-
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border px-4 sm:px-6 py-3">
+      <header className="border-b border-border px-4 sm:px-6 py-3 bg-background/80 backdrop-blur-sm">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <h1 className="font-display text-base sm:text-lg font-bold cursor-pointer" onClick={() => navigate("/")}>
             QuizForge<span className="text-primary">AI</span>
@@ -144,13 +143,14 @@ export function QuizResults({ quiz }: QuizResultsProps) {
       </header>
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
-        {/* Score section */}
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ duration: 0.5, type: "spring" }}
           className="text-center space-y-4 sm:space-y-6"
         >
+          <img src={quizSuccessImg} alt="Quiz Complete" className="w-16 h-16 sm:w-20 sm:h-20 mx-auto" loading="lazy" width={512} height={512} />
+
           {/* Confetti dots */}
           {results.passed && (
             <div className="relative h-0">
@@ -160,7 +160,7 @@ export function QuizResults({ quiz }: QuizResultsProps) {
                   className="absolute w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full"
                   style={{
                     left: "50%",
-                    top: "60px",
+                    top: "0px",
                     backgroundColor: [
                       "hsl(var(--primary))", "hsl(var(--accent))",
                       "hsl(var(--warning))", "hsl(var(--success))"
@@ -204,7 +204,7 @@ export function QuizResults({ quiz }: QuizResultsProps) {
 
           <div className="space-y-2">
             <h2 className="font-display text-2xl sm:text-3xl font-bold">
-              {resultEmoji} {results.passed ? "You Passed!" : "Keep Learning!"}
+              {results.passed ? "🎉 Excellent Work!" : "💪 Keep Learning!"}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {results.correct}/{quiz.questions.length} correct · {results.earned}/{results.total} pts · {minutes}m {seconds}s
@@ -237,7 +237,10 @@ export function QuizResults({ quiz }: QuizResultsProps) {
 
         {/* Review section */}
         <div className="space-y-2 sm:space-y-3">
-          <h3 className="font-display text-base sm:text-lg font-semibold">Review Answers</h3>
+          <h3 className="font-display text-base sm:text-lg font-semibold flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-primary" />
+            Review Answers
+          </h3>
           {quiz.questions.map((q, i) => {
             const userAnswer = store.answers[i];
             const isCorrect = userAnswer !== null && String(userAnswer) === String(q.correct_answer);
