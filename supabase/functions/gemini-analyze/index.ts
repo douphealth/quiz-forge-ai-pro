@@ -6,11 +6,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const LOVABLE_ALLOWED_MODELS = new Set([
+const LOVABLE_MODELS = new Set([
   "google/gemini-2.5-pro",
   "google/gemini-2.5-flash",
   "google/gemini-2.5-flash-lite",
-  "google/gemini-2.5-flash-image",
   "google/gemini-3-flash-preview",
   "google/gemini-3-pro-image-preview",
   "google/gemini-3.1-pro-preview",
@@ -21,97 +20,100 @@ const LOVABLE_ALLOWED_MODELS = new Set([
   "openai/gpt-5.2",
 ]);
 
-function resolveProviderAndModel(
+function resolveProvider(
   requestedProvider: string | undefined,
   requestedModel: string | undefined,
   userApiKey: string | undefined,
 ): { provider: "lovable" | "openrouter"; model: string; warning: string | null } {
   const model = typeof requestedModel === "string" ? requestedModel.trim() : "";
 
-  if (requestedProvider === "openrouter") {
-    return { provider: "openrouter", model: model || "anthropic/claude-sonnet-4", warning: null };
+  // Explicit openrouter with user key
+  if (requestedProvider === "openrouter" && userApiKey) {
+    return { provider: "openrouter", model: model || "google/gemini-2.5-flash", warning: null };
   }
 
-  if (model && LOVABLE_ALLOWED_MODELS.has(model)) {
+  // If the model is in Lovable's set, always use Lovable (fastest)
+  if (model && LOVABLE_MODELS.has(model)) {
     return { provider: "lovable", model, warning: null };
   }
 
-  if (model && !LOVABLE_ALLOWED_MODELS.has(model)) {
+  // Non-Lovable model with OpenRouter key
+  if (model && !LOVABLE_MODELS.has(model)) {
     const orKey = userApiKey || Deno.env.get("OPENROUTER_API_KEY");
     if (orKey) {
-      return { provider: "openrouter", model, warning: `Model "${model}" routed to OpenRouter.` };
+      return { provider: "openrouter", model, warning: null };
     }
-    return { provider: "lovable", model: "google/gemini-3-flash-preview", warning: `No OpenRouter key — using Gemini 3 Flash.` };
+    return { provider: "lovable", model: "google/gemini-2.5-flash", warning: `Model "${model}" unavailable without OpenRouter key. Using Gemini 2.5 Flash instead.` };
   }
 
-  return { provider: "lovable", model: "google/gemini-3-flash-preview", warning: null };
+  // Default: fastest reliable model via Lovable
+  return { provider: "lovable", model: "google/gemini-2.5-flash", warning: null };
 }
 
-function getProviderConfig(provider: "lovable" | "openrouter", userApiKey?: string) {
+function getConfig(provider: "lovable" | "openrouter", userApiKey?: string) {
   if (provider === "openrouter") {
     const key = userApiKey || Deno.env.get("OPENROUTER_API_KEY");
-    if (!key) throw new Error("No OpenRouter API key. Enter your key in the Configure step.");
+    if (!key) throw new Error("No OpenRouter API key configured.");
     return {
       url: "https://openrouter.ai/api/v1/chat/completions",
       apiKey: key,
       headers: { "HTTP-Referer": "https://quizforge-ai.lovable.app", "X-Title": "QuizForge AI" },
     };
   }
-
   const key = Deno.env.get("LOVABLE_API_KEY");
   if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
   return { url: "https://ai.gateway.lovable.dev/v1/chat/completions", apiKey: key, headers: {} };
 }
 
-function buildPrompt(title: string, content: string, count: number, diff: string, types: string, lang: string, topics: string): string {
-  return `You are an elite educational content designer and assessment specialist. Your quizzes are used by Fortune 500 companies, top universities, and leading e-learning platforms worldwide.
+function buildSystemPrompt(): string {
+  return `You are QuizForge AI — the world's most advanced educational quiz engine trusted by Fortune 500 companies, top universities, and leading e-learning platforms.
 
-TASK: Create a premium, enterprise-grade quiz from the article titled "${title}".
+Your quizzes are LEGENDARY for their quality. You produce quiz questions that:
+- Test DEEP understanding, not surface recall
+- Use real-world scenarios and applied knowledge
+- Have plausible, educational distractors
+- Include rich explanations that teach even when answered correctly
 
-QUIZ SPECIFICATIONS:
-- Total questions: exactly ${count}
-- Difficulty: ${diff}
-- Question types: ${types}
-- Language: ${lang}
+You ALWAYS return valid JSON. Never add markdown fences or extra text.`;
+}
+
+function buildUserPrompt(title: string, content: string, count: number, diff: string, types: string, lang: string, topics: string): string {
+  return `Create an exceptional quiz from: "${title}"
+
+SPECS: ${count} questions | Difficulty: ${diff} | Types: ${types} | Language: ${lang}
 ${topics}
 
-QUALITY STANDARDS (MANDATORY):
-1. QUESTION DESIGN:
-   - Each question must test genuine understanding, NOT surface-level recall
-   - Use Bloom's Taxonomy: mix Remember, Understand, Apply, Analyze levels
-   - Questions should be scenario-based where possible ("Given that X, what would happen if...")
-   - Avoid trivial "What is..." questions — reframe as applied knowledge
-   - Each question must have a clear, unambiguous single correct answer
+QUESTION DESIGN RULES:
+- Use Bloom's Taxonomy: mix Remember, Understand, Apply, and Analyze levels
+- Frame questions as scenarios: "Given X, what would happen if..."
+- Each question MUST have exactly ONE unambiguous correct answer
+- Vary difficulty: include easy warm-ups, challenging mid-section, and hard finishers
+- Order from easier → harder for pedagogical flow
 
-2. ANSWER OPTIONS:
-   - All distractors (wrong answers) must be PLAUSIBLE — they should represent common misconceptions
-   - Options should be similar in length and style
-   - Avoid "All of the above" / "None of the above"
-   - Randomize correct answer position (don't always put it first)
+ANSWER OPTION RULES:
+- All wrong answers must be PLAUSIBLE (common misconceptions)
+- Options should be similar length and grammatical structure
+- Never use "All of the above" or "None of the above"
+- Randomize correct answer position across questions
 
-3. EXPLANATIONS (CRITICAL):
-   - Every question MUST have a rich, educational explanation (3-5 sentences minimum)
-   - Explain WHY the correct answer is right
-   - Explain WHY at least one distractor is wrong and what misconception it represents
-   - Include a relevant insight or "Did you know?" fact when possible
-   - Reference the source material when relevant
+EXPLANATION RULES (CRITICAL — this is what makes our quizzes premium):
+- Every explanation MUST be 3-5 sentences minimum
+- Explain WHY the correct answer is right with evidence from the article
+- Explain WHY the most tempting wrong answer is wrong
+- Include a "💡 Pro Tip" or interesting fact when possible
+- Make explanations feel like mini-lessons
 
-4. METADATA:
-   - Assign accurate difficulty per question: "easy", "medium", or "hard"
-   - Assign points: easy=1, medium=2, hard=3
-   - Assign a Bloom's taxonomy level: "remember", "understand", "apply", "analyze"
-
-Return ONLY valid JSON in this exact format:
+Return this exact JSON structure:
 {
   "title": "Quiz: ${title}",
-  "description": "A compelling 2-sentence description of what this quiz covers and tests",
+  "description": "A compelling 2-sentence description",
   "questions": [
     {
-      "question_text": "A well-crafted question that tests understanding",
+      "question_text": "Well-crafted scenario question",
       "question_type": "multiple_choice",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correct_answer": "2",
-      "explanation": "Detailed educational explanation with reasoning...",
+      "explanation": "Detailed educational explanation with 💡 Pro Tip...",
       "difficulty": "medium",
       "points": 2,
       "bloom_level": "apply"
@@ -120,13 +122,12 @@ Return ONLY valid JSON in this exact format:
 }
 
 RULES:
-- correct_answer = 0-based index as a string
-- For true_false: options = ["True", "False"], correct_answer = "0" or "1"
-- Vary difficulty across questions (don't make them all the same)
-- Order questions from easier to harder for good pedagogical flow
-- Make the quiz ENGAGING — learners should feel challenged but not overwhelmed
+- correct_answer = 0-based index as STRING
+- true_false: options = ["True", "False"], correct_answer = "0" or "1"
+- Points: easy=1, medium=2, hard=3
+- fill_blank: options = [], correct_answer = the answer text
 
-ARTICLE CONTENT:
+ARTICLE:
 ${content.slice(0, 15000)}`;
 }
 
@@ -143,114 +144,124 @@ serve(async (req) => {
 
     if (!content) {
       return new Response(JSON.stringify({ error: "Content is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const userKey = typeof openrouter_api_key === "string" ? openrouter_api_key.trim() : undefined;
-    const resolved = resolveProviderAndModel(provider, model, userKey);
+    const resolved = resolveProvider(provider, model, userKey);
+    const config = getConfig(resolved.provider, userKey);
 
     const count = numQuestions || 10;
     const diff = difficulty || "mixed";
     const lang = language || "English";
     const types = questionTypes?.length ? questionTypes.join(", ") : "multiple_choice";
-    const topics = focusTopics?.length ? `Focus on these topics: ${focusTopics.join(", ")}.` : "";
-
-    const prompt = buildPrompt(title || "Untitled", content, count, diff, types, lang, topics);
-    const config = getProviderConfig(resolved.provider, userKey);
+    const topics = focusTopics?.length ? `Focus on: ${focusTopics.join(", ")}.` : "";
 
     console.log(`[gemini-analyze] provider=${resolved.provider} model=${resolved.model}`);
     if (resolved.warning) console.warn(`[gemini-analyze] ${resolved.warning}`);
 
-    const payload: any = {
+    const payload = {
       model: resolved.model,
       messages: [
-        { role: "system", content: "You are a world-class quiz generation engine. You produce pedagogically excellent, beautifully structured quizzes. Return only valid JSON, no markdown fences, no extra text." },
-        { role: "user", content: prompt },
+        { role: "system", content: buildSystemPrompt() },
+        { role: "user", content: buildUserPrompt(title || "Untitled", content, count, diff, types, lang, topics) },
       ],
       temperature: 0.7,
       max_tokens: 8192,
     };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120_000); // 120s hard limit
+    // Retry logic: try up to 2 times
+    let lastError = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90_000);
 
-    let response: Response;
-    try {
-      response = await fetch(config.url, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${config.apiKey}`,
-          "Content-Type": "application/json",
-          ...config.headers,
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-    } catch (fetchErr: any) {
+      let response: Response;
+      try {
+        response = await fetch(config.url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${config.apiKey}`,
+            "Content-Type": "application/json",
+            ...config.headers,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        clearTimeout(timeoutId);
+        if (fetchErr.name === "AbortError") {
+          lastError = "AI model timed out (>90s). Try a faster model like google/gemini-2.5-flash.";
+          if (attempt === 0) { console.warn("[gemini-analyze] timeout, retrying..."); continue; }
+          return new Response(JSON.stringify({ error: lastError }), {
+            status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw fetchErr;
+      }
       clearTimeout(timeoutId);
-      if (fetchErr.name === "AbortError") {
-        return new Response(JSON.stringify({ error: "AI model took too long to respond (>120s). Try a faster model like google/gemini-3-flash-preview or a non-free OpenRouter model." }), {
-          status: 504,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+
+      if (response.status === 429) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 3000)); continue; }
+        return new Response(JSON.stringify({ error: "Rate limited. Wait a moment and try again." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw fetchErr;
-    }
-    clearTimeout(timeoutId);
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Credits exhausted. Please add funds." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    if (response.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Wait a moment and try again." }), {
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[gemini-analyze] ${resolved.provider} error ${response.status}:`, errText);
+        let msg = `AI error (${response.status})`;
+        try {
+          const j = JSON.parse(errText);
+          msg = j?.error?.message || j?.error || j?.message || msg;
+        } catch {}
+        if (attempt === 0) { lastError = String(msg); continue; }
+        return new Response(JSON.stringify({ error: String(msg), warning: resolved.warning }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Success
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (!text) throw new Error("No response from AI model");
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AI returned invalid format. Please try again.");
+
+      const quizData = JSON.parse(jsonMatch[0]);
+
+      // Validate quiz structure
+      if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
+        throw new Error("AI returned empty quiz. Please try again.");
+      }
+
+      const usage = data.usage || {};
+      return new Response(JSON.stringify({
+        ...quizData,
+        usage,
+        provider: resolved.provider,
+        model: resolved.model,
+        warning: resolved.warning,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (response.status === 402) {
-      return new Response(JSON.stringify({ error: "Credits exhausted. Top up your account." }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[gemini-analyze] ${resolved.provider} error ${response.status}:`, errText);
-
-      let userMessage = `AI provider error (${response.status})`;
-      try {
-        const errJson = JSON.parse(errText);
-        const msg = errJson?.error?.message || errJson?.error || errJson?.message;
-        if (msg) userMessage = String(msg);
-      } catch { /* use default message */ }
-
-      return new Response(JSON.stringify({ error: userMessage, warning: resolved.warning }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content;
-    if (!text) throw new Error("No response from AI model");
-
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Could not parse quiz JSON from AI response");
-
-    const quizData = JSON.parse(jsonMatch[0]);
-    const usage = data.usage || {};
-
-    return new Response(JSON.stringify({
-      ...quizData,
-      usage,
-      provider: resolved.provider,
-      model: resolved.model,
-      warning: resolved.warning,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: lastError || "Generation failed after retries" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[gemini-analyze] error:", err.message);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
