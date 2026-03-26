@@ -236,12 +236,59 @@ serve(async (req) => {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("AI returned invalid format. Please try again.");
 
-      const quizData = JSON.parse(jsonMatch[0]);
+      let quizData: any;
+      try {
+        quizData = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        throw new Error("AI returned malformed JSON. Please try again.");
+      }
 
-      // Validate quiz structure
+      // Validate quiz structure with strict checks
       if (!quizData.questions || !Array.isArray(quizData.questions) || quizData.questions.length === 0) {
         throw new Error("AI returned empty quiz. Please try again.");
       }
+
+      // Validate and sanitize each question
+      const validatedQuestions = quizData.questions.map((q: any, i: number) => {
+        if (!q.question_text || typeof q.question_text !== "string") {
+          throw new Error(`Question ${i + 1} missing question_text`);
+        }
+        const qType = q.question_type || "multiple_choice";
+        const options = Array.isArray(q.options) ? q.options.filter((o: any) => typeof o === "string") : [];
+        
+        // Validate correct_answer
+        let correctAnswer = String(q.correct_answer ?? "0");
+        if (qType === "multiple_choice" || qType === "true_false") {
+          const idx = parseInt(correctAnswer, 10);
+          if (isNaN(idx) || idx < 0 || idx >= options.length) {
+            correctAnswer = "0"; // Default to first option if invalid
+          }
+        }
+
+        // Validate difficulty
+        const validDifficulties = ["easy", "medium", "hard"];
+        const difficulty = validDifficulties.includes(q.difficulty) ? q.difficulty : "medium";
+
+        // Validate points
+        const points = typeof q.points === "number" && q.points >= 1 && q.points <= 10 ? q.points : (difficulty === "easy" ? 1 : difficulty === "hard" ? 3 : 2);
+
+        // Validate bloom level
+        const validBloomLevels = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
+        const bloomLevel = validBloomLevels.includes(q.bloom_level) ? q.bloom_level : null;
+
+        return {
+          question_text: q.question_text.trim(),
+          question_type: qType,
+          options,
+          correct_answer: correctAnswer,
+          explanation: typeof q.explanation === "string" ? q.explanation.trim() : "No explanation provided.",
+          difficulty,
+          points,
+          bloom_level: bloomLevel,
+        };
+      });
+
+      quizData.questions = validatedQuestions;
 
       const usage = data.usage || {};
       return new Response(JSON.stringify({
